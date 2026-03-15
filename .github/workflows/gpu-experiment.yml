@@ -1,0 +1,314 @@
+name: Run GPU Experiment on Lambda Labs
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_type:
+        description: "GPU instance type"
+        required: true
+        default: "gpu_1x_a100"
+        type: choice
+        options:
+          - gpu_1x_a100
+          - gpu_1x_a100_sxm4
+          - gpu_1x_h100_pcie
+          - gpu_1x_a10
+      region:
+        description: "Preferred region (blank = any available)"
+        required: false
+        default: ""
+        type: string
+      max_generations:
+        description: "Max generations for the genetic algorithm"
+        required: true
+        default: "50"
+        type: string
+      crossover_interval:
+        description: "Crossover interval between lineages"
+        required: true
+        default: "5"
+        type: string
+      mutation_rate:
+        description: "Mutation rate (0.0-1.0)"
+        required: true
+        default: "0.3"
+        type: string
+      mutation_strength:
+        description: "Mutation strength (0.0-1.0)"
+        required: true
+        default: "0.3"
+        type: string
+      seed:
+        description: "Random seed"
+        required: true
+        default: "42"
+        type: string
+      branch:
+        description: "Branch to run experiment on (results pushed here)"
+        required: true
+        default: "main"
+        type: string
+      timeout_minutes:
+        description: "Max wall-clock minutes before force-terminating"
+        required: true
+        default: "600"
+        type: string
+
+env:
+  LAMBDA_API_URL: "https://cloud.lambdalabs.com/api/v1"
+
+jobs:
+  run-experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 720  # 12hr hard cap as safety net
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LAMBDA_SSH_PRIVATE_KEY }}" > ~/.ssh/lambda_key
+          chmod 600 ~/.ssh/lambda_key
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "UserKnownHostsFile /dev/null" >> ~/.ssh/config
+
+      - name: Launch Lambda instance
+        id: launch
+        run: |
+          echo "::group::Launching Lambda instance"
+
+          # Build region filter
+          REGION_FILTER=""
+          if [ -n "${{ github.event.inputs.region }}" ]; then
+            REGION_FILTER='"region_name": "${{ github.event.inputs.region }}",'
+          fi
+
+          # Try to launch, retry on availability issues
+          MAX_RETRIES=5
+          RETRY_DELAY=60
+          INSTANCE_ID=""
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Launch attempt $i/$MAX_RETRIES..."
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -X POST "${{ env.LAMBDA_API_URL }}/instance-operations/launch" \
+              -H "Authorization: Bearer ${{ secrets.LAMBDA_API_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"instance_type_name\": \"${{ github.event.inputs.instance_type }}\",
+                ${REGION_FILTER}
+                \"ssh_key_names\": [\"${{ secrets.LAMBDA_SSH_KEY_NAME }}\"],
+                \"quantity\": 1,
+                \"name\": \"gh-experiment-${{ github.run_id }}\"
+              }")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+
+            echo "HTTP $HTTP_CODE"
+            echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              INSTANCE_ID=$(echo "$BODY" | jq -r '.data.instance_ids[0]')
+              if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "null" ]; then
+                echo "Launched instance: $INSTANCE_ID"
+                break
+              fi
+            fi
+
+            if [ "$i" -lt "$MAX_RETRIES" ]; then
+              echo "Retrying in ${RETRY_DELAY}s (GPU may not be available)..."
+              sleep $RETRY_DELAY
+              RETRY_DELAY=$((RETRY_DELAY * 2))
+            fi
+          done
+
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "null" ]; then
+            echo "::error::Failed to launch instance after $MAX_RETRIES attempts"
+            exit 1
+          fi
+
+          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+          echo "::endgroup::"
+
+      - name: Wait for instance to be ready
+        id: wait
+        run: |
+          echo "::group::Waiting for instance to become active"
+          INSTANCE_ID="${{ steps.launch.outputs.instance_id }}"
+          MAX_WAIT=300  # 5 minutes
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            RESPONSE=$(curl -s \
+              -H "Authorization: Bearer ${{ secrets.LAMBDA_API_KEY }}" \
+              "${{ env.LAMBDA_API_URL }}/instances/$INSTANCE_ID")
+
+            STATUS=$(echo "$RESPONSE" | jq -r '.data.status')
+            IP=$(echo "$RESPONSE" | jq -r '.data.ip')
+
+            echo "Status: $STATUS | IP: $IP | Elapsed: ${ELAPSED}s"
+
+            if [ "$STATUS" = "active" ] && [ -n "$IP" ] && [ "$IP" != "null" ]; then
+              echo "Instance is active at $IP"
+              echo "instance_ip=$IP" >> "$GITHUB_OUTPUT"
+              break
+            fi
+
+            if [ "$STATUS" = "terminated" ] || [ "$STATUS" = "error" ]; then
+              echo "::error::Instance entered $STATUS state"
+              exit 1
+            fi
+
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo "::error::Instance did not become active within ${MAX_WAIT}s"
+            exit 1
+          fi
+
+          # Wait for SSH to be ready
+          echo "Waiting for SSH..."
+          for i in $(seq 1 30); do
+            if ssh -i ~/.ssh/lambda_key -o ConnectTimeout=5 ubuntu@$IP "echo 'SSH ready'" 2>/dev/null; then
+              echo "SSH connection established"
+              break
+            fi
+            echo "SSH attempt $i/30..."
+            sleep 10
+          done
+          echo "::endgroup::"
+
+      - name: Run experiment on Lambda instance
+        id: experiment
+        env:
+          INSTANCE_IP: ${{ steps.wait.outputs.instance_ip }}
+        run: |
+          echo "::group::Running experiment"
+          REPO_URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          BRANCH="${{ github.event.inputs.branch }}"
+
+          ssh -i ~/.ssh/lambda_key ubuntu@$INSTANCE_IP bash <<REMOTE_SCRIPT
+            set -euo pipefail
+
+            echo "=== System info ==="
+            nvidia-smi
+            python3 --version
+
+            echo "=== Installing uv ==="
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="\$HOME/.local/bin:\$PATH"
+
+            echo "=== Cloning repository ==="
+            git clone --branch ${BRANCH} ${REPO_URL} ~/experiment
+            cd ~/experiment
+
+            echo "=== Installing dependencies ==="
+            uv sync
+
+            echo "=== Preparing data ==="
+            uv run python prepare.py
+
+            echo "=== Running experiment ==="
+            timeout ${{ github.event.inputs.timeout_minutes }}m uv run python dual_runner.py \
+              --max-generations ${{ github.event.inputs.max_generations }} \
+              --crossover-interval ${{ github.event.inputs.crossover_interval }} \
+              --mutation-rate ${{ github.event.inputs.mutation_rate }} \
+              --mutation-strength ${{ github.event.inputs.mutation_strength }} \
+              --seed ${{ github.event.inputs.seed }}
+
+            echo "=== Experiment complete ==="
+          REMOTE_SCRIPT
+
+          echo "::endgroup::"
+
+      - name: Collect and push results
+        if: always()
+        env:
+          INSTANCE_IP: ${{ steps.wait.outputs.instance_ip }}
+        run: |
+          echo "::group::Collecting results"
+
+          # Skip if we never got an IP
+          if [ -z "$INSTANCE_IP" ]; then
+            echo "No instance IP — skipping result collection"
+            exit 0
+          fi
+
+          BRANCH="${{ github.event.inputs.branch }}"
+
+          ssh -i ~/.ssh/lambda_key -o ConnectTimeout=10 ubuntu@$INSTANCE_IP bash <<REMOTE_PUSH || echo "Warning: result collection failed"
+            set -euo pipefail
+            export PATH="\$HOME/.local/bin:\$PATH"
+            cd ~/experiment
+
+            # Configure git
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            # Stage results (results.tsv, any generated genomes, logs, plots)
+            git add -f results.tsv 2>/dev/null || true
+            git add -f run.log 2>/dev/null || true
+            git add -f progress.png 2>/dev/null || true
+            git add genomes/ 2>/dev/null || true
+            git add results/ 2>/dev/null || true
+
+            # Commit if there are changes
+            if git diff --cached --quiet; then
+              echo "No results to commit"
+            else
+              git commit -m "experiment: results from GPU run #${{ github.run_id }}
+
+              Instance: ${{ github.event.inputs.instance_type }}
+              Generations: ${{ github.event.inputs.max_generations }}
+              Crossover interval: ${{ github.event.inputs.crossover_interval }}
+              Mutation rate: ${{ github.event.inputs.mutation_rate }}
+              Seed: ${{ github.event.inputs.seed }}
+              Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+              git push origin HEAD:${BRANCH}
+              echo "Results pushed successfully"
+            fi
+          REMOTE_PUSH
+
+          echo "::endgroup::"
+
+      - name: Terminate Lambda instance
+        if: always()
+        run: |
+          INSTANCE_ID="${{ steps.launch.outputs.instance_id }}"
+
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "No instance to terminate"
+            exit 0
+          fi
+
+          echo "Terminating instance $INSTANCE_ID..."
+
+          for i in $(seq 1 4); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST "${{ env.LAMBDA_API_URL }}/instance-operations/terminate" \
+              -H "Authorization: Bearer ${{ secrets.LAMBDA_API_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"instance_ids\": [\"$INSTANCE_ID\"]}")
+
+            echo "Terminate attempt $i: HTTP $HTTP_CODE"
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Instance terminated successfully"
+              exit 0
+            fi
+
+            DELAY=$((2 ** i))
+            echo "Retrying in ${DELAY}s..."
+            sleep $DELAY
+          done
+
+          echo "::warning::Failed to terminate instance $INSTANCE_ID — check Lambda dashboard!"
