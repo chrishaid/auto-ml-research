@@ -1,0 +1,16 @@
+[problem]
+name = "california-housing"
+task = "regression"
+metric = "rmse"
+direction = "minimize"
+
+[data]
+source = "sklearn"
+dataset = "california_housing"
+target = "MedHouseVal"
+
+[budget]
+time_budget = 300
+pipeline_timeout = 60
+# n_workers = 4    # optional, defaults to cpu_count // 2 (max 8)
+# min_evaluations = 200  # keep going past time_budget until this many evals done

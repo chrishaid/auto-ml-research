@@ -1,0 +1,88 @@
+name: Evolve
+
+on:
+  workflow_dispatch:
+    inputs:
+      problem_config:
+        description: "Path to problem config file"
+        default: "problem.toml"
+        type: string
+      time_budget:
+        description: "Time budget in seconds"
+        default: "300"
+        type: string
+      n_workers:
+        description: "Number of islands (0 = auto)"
+        default: "0"
+        type: string
+
+jobs:
+  evolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --extra snowflake
+
+      - name: Configure Snowflake connection
+        if: inputs.problem_config != 'problem.toml'
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: |
+          mkdir -p ~/.snowflake
+          cat > ~/.snowflake/connections.toml << 'CONN'
+          [default]
+          account = "$SNOWFLAKE_ACCOUNT"
+          user = "$SNOWFLAKE_USER"
+          password = "$SNOWFLAKE_PASSWORD"
+          CONN
+          envsubst < ~/.snowflake/connections.toml > ~/.snowflake/connections.tmp
+          mv ~/.snowflake/connections.tmp ~/.snowflake/connections.toml
+          chmod 600 ~/.snowflake/connections.toml
+
+      - name: Select problem config
+        run: |
+          if [ "${{ inputs.problem_config }}" != "problem.toml" ]; then
+            cp "${{ inputs.problem_config }}" problem.toml
+          fi
+
+      - name: Patch problem.toml with inputs
+        run: |
+          if [ "${{ inputs.time_budget }}" != "300" ]; then
+            sed -i "s/^time_budget = .*/time_budget = ${{ inputs.time_budget }}/" problem.toml
+          fi
+          if [ "${{ inputs.n_workers }}" != "0" ]; then
+            echo "n_workers = ${{ inputs.n_workers }}" >> problem.toml
+          fi
+          cat problem.toml
+
+      - name: Run evolution
+        run: uv run evolve.py 2>&1 | tee run.log
+
+      - name: Print results
+        if: always()
+        run: |
+          echo "=== Results ==="
+          grep "^best_score:\|^metric:\|^generations:\|^pipelines_evaluated:\|^total_seconds:\|^best_pipeline:" run.log || tail -50 run.log
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evolve-results-${{ github.run_number }}-${{ inputs.problem_config }}
+          path: |
+            run.log
+            results.tsv

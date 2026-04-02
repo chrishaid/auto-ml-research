@@ -1,0 +1,88 @@
+name: Evolve All Propensity Models
+
+on:
+  workflow_dispatch:
+    inputs:
+      time_budget:
+        description: "Time budget in seconds"
+        default: "300"
+        type: string
+      n_workers:
+        description: "Number of islands (0 = auto)"
+        default: "0"
+        type: string
+
+jobs:
+  evolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        problem:
+          - problems/email_propensity.toml
+          - problems/web_propensity.toml
+          - problems/event_propensity.toml
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --extra snowflake
+
+      - name: Configure Snowflake connection
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: |
+          mkdir -p ~/.snowflake
+          cat > ~/.snowflake/connections.toml << 'CONN'
+          [default]
+          account = "$SNOWFLAKE_ACCOUNT"
+          user = "$SNOWFLAKE_USER"
+          password = "$SNOWFLAKE_PASSWORD"
+          CONN
+          envsubst < ~/.snowflake/connections.toml > ~/.snowflake/connections.tmp
+          mv ~/.snowflake/connections.tmp ~/.snowflake/connections.toml
+          chmod 600 ~/.snowflake/connections.toml
+
+      - name: Select problem config
+        run: cp "${{ matrix.problem }}" problem.toml
+
+      - name: Patch problem.toml with inputs
+        run: |
+          if [ "${{ inputs.time_budget }}" != "300" ]; then
+            sed -i "s/^time_budget = .*/time_budget = ${{ inputs.time_budget }}/" problem.toml
+          fi
+          if [ "${{ inputs.n_workers }}" != "0" ]; then
+            echo "n_workers = ${{ inputs.n_workers }}" >> problem.toml
+          fi
+          cat problem.toml
+
+      - name: Run evolution
+        run: uv run evolve.py 2>&1 | tee run.log
+
+      - name: Print results
+        if: always()
+        run: |
+          echo "=== Results for ${{ matrix.problem }} ==="
+          grep "^best_score:\|^metric:\|^generations:\|^pipelines_evaluated:\|^total_seconds:\|^best_pipeline:" run.log || tail -50 run.log
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evolve-${{ strategy.job-index }}-${{ github.run_number }}
+          path: |
+            run.log
+            results.tsv

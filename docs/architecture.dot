@@ -1,0 +1,162 @@
+// AutoML Island Model Architecture
+// Render: dot -Tpng docs/architecture.dot -o docs/architecture.png
+
+digraph island_model {
+    rankdir=TB;
+    fontname="Helvetica";
+    node [fontname="Helvetica", fontsize=11];
+    edge [fontname="Helvetica", fontsize=9];
+    compound=true;
+    label="AutoML Island Model Evolution";
+    labelloc=t;
+    fontsize=16;
+
+    // =====================================================================
+    // Diagram 1: System Overview
+    // =====================================================================
+
+    subgraph cluster_overview {
+        label="System Overview";
+        style=dashed;
+        color=gray60;
+
+        // Islands as clusters
+        subgraph cluster_island0 {
+            label="Island 0";
+            style=filled;
+            fillcolor="#e8f4fd";
+            color="#4a90d9";
+            pop0 [label="Population\n(20 pipelines)", shape=box, style=filled, fillcolor="#b3d9ff"];
+            evo0 [label="Evolve\n(select, crossover,\nmutate, evaluate)", shape=ellipse, style=filled, fillcolor="#d4edff"];
+            pop0 -> evo0 -> pop0;
+        }
+
+        subgraph cluster_island1 {
+            label="Island 1";
+            style=filled;
+            fillcolor="#e8fde8";
+            color="#4ad94a";
+            pop1 [label="Population\n(20 pipelines)", shape=box, style=filled, fillcolor="#b3ffb3"];
+            evo1 [label="Evolve\n(select, crossover,\nmutate, evaluate)", shape=ellipse, style=filled, fillcolor="#d4ffd4"];
+            pop1 -> evo1 -> pop1;
+        }
+
+        subgraph cluster_island2 {
+            label="Island 2";
+            style=filled;
+            fillcolor="#fde8fd";
+            color="#d94ad9";
+            pop2 [label="Population\n(20 pipelines)", shape=box, style=filled, fillcolor="#ffb3ff"];
+            evo2 [label="Evolve\n(select, crossover,\nmutate, evaluate)", shape=ellipse, style=filled, fillcolor="#ffd4ff"];
+            pop2 -> evo2 -> pop2;
+        }
+
+        subgraph cluster_islandN {
+            label="Island N-1";
+            style=filled;
+            fillcolor="#fdfde8";
+            color="#d9d94a";
+            popN [label="Population\n(20 pipelines)", shape=box, style=filled, fillcolor="#ffffb3"];
+            evoN [label="Evolve\n(select, crossover,\nmutate, evaluate)", shape=ellipse, style=filled, fillcolor="#ffffd4"];
+            popN -> evoN -> popN;
+        }
+
+        // Shared state
+        shared [label="SharedState\n- global best fitness\n- global best config\n- per-island inboxes\n- per-island locks", shape=record, style=filled, fillcolor="#fff3e0", color="#ff9800"];
+
+        // Migration arrows (ring topology)
+        pop0 -> pop1 [label="migrate\nbest", color="#ff5722", style=bold, constraint=false];
+        pop1 -> pop2 [label="migrate\nbest", color="#ff5722", style=bold, constraint=false];
+        pop2 -> popN [label="...", color="#ff5722", style=bold, constraint=false];
+        popN -> pop0 [label="migrate\nbest", color="#ff5722", style=bold, constraint=false];
+
+        // Shared state connections
+        shared -> pop0 [style=dotted, color=gray50, dir=both, label="inbox"];
+        shared -> pop1 [style=dotted, color=gray50, dir=both, label="inbox"];
+        shared -> pop2 [style=dotted, color=gray50, dir=both, label="inbox"];
+        shared -> popN [style=dotted, color=gray50, dir=both, label="inbox"];
+
+        // Final output
+        output [label="Final Output\n---\nbest_score\nmetric\ngenerations\npipelines_evaluated\ntotal_seconds\nbest_pipeline", shape=note, style=filled, fillcolor="#c8e6c9", color="#388e3c"];
+        shared -> output [label="best of\nall islands", color="#388e3c", style=bold];
+    }
+
+    // =====================================================================
+    // Diagram 2: Single Island Lifecycle
+    // =====================================================================
+
+    subgraph cluster_lifecycle {
+        label="Single Island Lifecycle";
+        style=dashed;
+        color=gray60;
+
+        lc_init [label="Init Random\nPopulation", shape=box, style=filled, fillcolor="#bbdefb"];
+        lc_tournament [label="Tournament\nSelection (k=3)", shape=box, style=filled, fillcolor="#c5cae9"];
+        lc_crossover [label="Crossover\n(block swap)", shape=box, style=filled, fillcolor="#d1c4e9"];
+        lc_mutate [label="Mutate\n(hyperparams, swap algo,\nmodify stages)", shape=box, style=filled, fillcolor="#e1bee7"];
+        lc_eval [label="Evaluate\n(fit + predict + score)", shape=box, style=filled, fillcolor="#f8bbd0"];
+        lc_replace [label="Replace Worst\n(if child better)", shape=box, style=filled, fillcolor="#ffcdd2"];
+        lc_inbox [label="Check Inbox\n(accept migrants)", shape=diamond, style=filled, fillcolor="#fff9c4"];
+        lc_time [label="Time\nRemaining?", shape=diamond, style=filled, fillcolor="#c8e6c9"];
+        lc_done [label="Done", shape=doublecircle, style=filled, fillcolor="#a5d6a7"];
+
+        lc_init -> lc_tournament;
+        lc_tournament -> lc_crossover [label="p=0.7"];
+        lc_tournament -> lc_mutate [label="p=0.3"];
+        lc_crossover -> lc_mutate [label="p=0.3\n(additional)"];
+        lc_crossover -> lc_eval [label="p=0.7\n(no extra mut)"];
+        lc_mutate -> lc_eval;
+        lc_eval -> lc_replace;
+        lc_replace -> lc_inbox;
+        lc_inbox -> lc_time;
+        lc_time -> lc_tournament [label="yes"];
+        lc_time -> lc_done [label="no"];
+
+        // Pipeline stages detail
+        subgraph cluster_pipeline_stages {
+            label="Pipeline Stages (swapped during crossover)";
+            style=filled;
+            fillcolor="#f5f5f5";
+            rank=same;
+            ps_prep [label="Preparation\n(imputation,\noutlier handling)", shape=box3d, style=filled, fillcolor="#ffecb3"];
+            ps_preproc [label="Preprocessing\n(scaling, PCA,\npolynomial)", shape=box3d, style=filled, fillcolor="#ffe0b2"];
+            ps_feat [label="Feature\nSelection\n(SelectKBest)", shape=box3d, style=filled, fillcolor="#ffccbc"];
+            ps_algo [label="Algorithm\n(RF, XGB, MLP,\n...)", shape=box3d, style=filled, fillcolor="#f8bbd0"];
+            ps_prep -> ps_preproc -> ps_feat -> ps_algo;
+        }
+    }
+
+    // =====================================================================
+    // Diagram 3: Migration Event
+    // =====================================================================
+
+    subgraph cluster_migration {
+        label="Migration Event (Ring Topology, every 15s)";
+        style=dashed;
+        color=gray60;
+
+        // Islands
+        m_i0 [label="Island 0\nbest: RF(depth=10)\nfitness: +0.85", shape=box, style=filled, fillcolor="#e3f2fd"];
+        m_i1 [label="Island 1\nbest: XGB(lr=0.1)\nfitness: +0.82", shape=box, style=filled, fillcolor="#e8f5e9"];
+        m_i2 [label="Island 2\nbest: LGB(leaves=63)\nfitness: +0.88", shape=box, style=filled, fillcolor="#fce4ec"];
+        m_i3 [label="Island 3\nbest: Ridge(a=0.5)\nfitness: +0.79", shape=box, style=filled, fillcolor="#fff8e1"];
+
+        // Inboxes
+        inbox0 [label="Inbox 0", shape=folder, style=filled, fillcolor="#e0e0e0"];
+        inbox1 [label="Inbox 1", shape=folder, style=filled, fillcolor="#e0e0e0"];
+        inbox2 [label="Inbox 2", shape=folder, style=filled, fillcolor="#e0e0e0"];
+        inbox3 [label="Inbox 3", shape=folder, style=filled, fillcolor="#e0e0e0"];
+
+        // Migration arrows (ring: i -> (i+1) % n)
+        m_i0 -> inbox1 [label="copy best", color="#f44336", style=bold];
+        m_i1 -> inbox2 [label="copy best", color="#f44336", style=bold];
+        m_i2 -> inbox3 [label="copy best", color="#f44336", style=bold];
+        m_i3 -> inbox0 [label="copy best", color="#f44336", style=bold];
+
+        // Inbox consumption
+        inbox0 -> m_i0 [label="next gen:\nreplace worst", style=dashed, color="#4caf50"];
+        inbox1 -> m_i1 [label="next gen:\nreplace worst", style=dashed, color="#4caf50"];
+        inbox2 -> m_i2 [label="next gen:\nreplace worst", style=dashed, color="#4caf50"];
+        inbox3 -> m_i3 [label="next gen:\nreplace worst", style=dashed, color="#4caf50"];
+    }
+}

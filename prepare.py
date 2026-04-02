@@ -1,389 +1,347 @@
 """
-One-time data preparation for autoresearch experiments.
-Downloads data shards and trains a BPE tokenizer.
+Data loading, splitting, and evaluation harness for AutoML evolution.
+
+This file is READ-ONLY during experiment runs. It provides:
+- Problem definition loading from problem.toml
+- Data loading from files (CSV/Parquet), sklearn datasets, or Snowflake
+- Train/val splitting (stratified for classification)
+- Metric evaluation with direction awareness
+- Score-to-fitness normalization (higher = better)
 
 Usage:
-    python prepare.py                  # full prep (download + tokenizer)
-    python prepare.py --num-shards 8   # download only 8 shards (for testing)
-
-Data and tokenizer are stored in ~/.cache/autoresearch/.
+    from prepare import load_problem, load_data, split_data, evaluate, score_to_fitness
 """
 
 import os
 import sys
-import time
-import math
-import argparse
-import pickle
-from multiprocessing import Pool
 
-import requests
-import pyarrow.parquet as pq
-import rustbpe
-import tiktoken
-import torch
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
 # ---------------------------------------------------------------------------
-# Constants (fixed, do not modify)
+# Metric registry
 # ---------------------------------------------------------------------------
 
-MAX_SEQ_LEN = 2048       # context length
-TIME_BUDGET = 300        # training time budget in seconds (5 minutes)
-EVAL_TOKENS = 40 * 524288  # number of tokens for val eval
+METRICS = {
+    # Regression
+    "rmse":     {"direction": "minimize", "fn": "_rmse"},
+    "mse":      {"direction": "minimize", "fn": "_mse"},
+    "mae":      {"direction": "minimize", "fn": "_mae"},
+    "r2":       {"direction": "maximize", "fn": "_r2"},
+    "adj_r2":   {"direction": "maximize", "fn": "_adj_r2"},
+    # Classification
+    "auc":      {"direction": "maximize", "fn": "_auc"},
+    "logloss":  {"direction": "minimize", "fn": "_logloss"},
+    "accuracy": {"direction": "maximize", "fn": "_accuracy"},
+    "f1":       {"direction": "maximize", "fn": "_f1"},
+}
+
+
+def _rmse(y_true, y_pred, **kw):
+    return np.sqrt(np.mean((y_true - y_pred) ** 2))
+
+def _mse(y_true, y_pred, **kw):
+    return np.mean((y_true - y_pred) ** 2)
+
+def _mae(y_true, y_pred, **kw):
+    return np.mean(np.abs(y_true - y_pred))
+
+def _r2(y_true, y_pred, **kw):
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+
+def _adj_r2(y_true, y_pred, n_features=1, **kw):
+    r2 = _r2(y_true, y_pred)
+    n = len(y_true)
+    p = n_features
+    if n - p - 1 <= 0:
+        return r2
+    return 1 - (1 - r2) * (n - 1) / (n - p - 1)
+
+def _auc(y_true, y_pred, **kw):
+    from sklearn.metrics import roc_auc_score
+    try:
+        return roc_auc_score(y_true, y_pred)
+    except ValueError:
+        return 0.0
+
+def _logloss(y_true, y_pred, **kw):
+    from sklearn.metrics import log_loss
+    # Clip predictions to avoid log(0)
+    y_pred = np.clip(y_pred, 1e-15, 1 - 1e-15)
+    return log_loss(y_true, y_pred)
+
+def _accuracy(y_true, y_pred, **kw):
+    from sklearn.metrics import accuracy_score
+    # Round predictions for classification
+    if y_pred.dtype.kind == 'f':
+        y_pred = np.round(y_pred)
+    return accuracy_score(y_true, y_pred)
+
+def _f1(y_true, y_pred, **kw):
+    from sklearn.metrics import f1_score
+    if y_pred.dtype.kind == 'f':
+        y_pred = np.round(y_pred)
+    return f1_score(y_true, y_pred, average="weighted", zero_division=0)
+
+_METRIC_FNS = {
+    "_rmse": _rmse, "_mse": _mse, "_mae": _mae, "_r2": _r2, "_adj_r2": _adj_r2,
+    "_auc": _auc, "_logloss": _logloss, "_accuracy": _accuracy, "_f1": _f1,
+}
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Problem loading
 # ---------------------------------------------------------------------------
 
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "autoresearch")
-DATA_DIR = os.path.join(CACHE_DIR, "data")
-TOKENIZER_DIR = os.path.join(CACHE_DIR, "tokenizer")
-BASE_URL = "https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle/resolve/main"
-MAX_SHARD = 6542 # the last datashard is shard_06542.parquet
-VAL_SHARD = MAX_SHARD  # pinned validation shard (shard_06542)
-VAL_FILENAME = f"shard_{VAL_SHARD:05d}.parquet"
-VOCAB_SIZE = 8192
-
-# BPE split pattern (GPT-4 style, with \p{N}{1,2} instead of {1,3})
-SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,2}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
-
-SPECIAL_TOKENS = [f"<|reserved_{i}|>" for i in range(4)]
-BOS_TOKEN = "<|reserved_0|>"
-
-# ---------------------------------------------------------------------------
-# Data download
-# ---------------------------------------------------------------------------
-
-def download_single_shard(index):
-    """Download one parquet shard with retries. Returns True on success."""
-    filename = f"shard_{index:05d}.parquet"
-    filepath = os.path.join(DATA_DIR, filename)
-    if os.path.exists(filepath):
-        return True
-
-    url = f"{BASE_URL}/{filename}"
-    max_attempts = 5
-    for attempt in range(1, max_attempts + 1):
-        try:
-            response = requests.get(url, stream=True, timeout=30)
-            response.raise_for_status()
-            temp_path = filepath + ".tmp"
-            with open(temp_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        f.write(chunk)
-            os.rename(temp_path, filepath)
-            print(f"  Downloaded {filename}")
-            return True
-        except (requests.RequestException, IOError) as e:
-            print(f"  Attempt {attempt}/{max_attempts} failed for {filename}: {e}")
-            for path in [filepath + ".tmp", filepath]:
-                if os.path.exists(path):
-                    try:
-                        os.remove(path)
-                    except OSError:
-                        pass
-            if attempt < max_attempts:
-                time.sleep(2 ** attempt)
-    return False
-
-
-def download_data(num_shards, download_workers=8):
-    """Download training shards + pinned validation shard."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    num_train = min(num_shards, MAX_SHARD)
-    ids = list(range(num_train))
-    if VAL_SHARD not in ids:
-        ids.append(VAL_SHARD)
-
-    # Count what's already downloaded
-    existing = sum(1 for i in ids if os.path.exists(os.path.join(DATA_DIR, f"shard_{i:05d}.parquet")))
-    if existing == len(ids):
-        print(f"Data: all {len(ids)} shards already downloaded at {DATA_DIR}")
-        return
-
-    needed = len(ids) - existing
-    print(f"Data: downloading {needed} shards ({existing} already exist)...")
-
-    workers = max(1, min(download_workers, needed))
-    with Pool(processes=workers) as pool:
-        results = pool.map(download_single_shard, ids)
-
-    ok = sum(1 for r in results if r)
-    print(f"Data: {ok}/{len(ids)} shards ready at {DATA_DIR}")
-
-# ---------------------------------------------------------------------------
-# Tokenizer training
-# ---------------------------------------------------------------------------
-
-def list_parquet_files():
-    """Return sorted list of parquet file paths in the data directory."""
-    files = sorted(f for f in os.listdir(DATA_DIR) if f.endswith(".parquet") and not f.endswith(".tmp"))
-    return [os.path.join(DATA_DIR, f) for f in files]
-
-
-def text_iterator(max_chars=1_000_000_000, doc_cap=10_000):
-    """Yield documents from training split (all shards except pinned val shard)."""
-    parquet_paths = [p for p in list_parquet_files() if not p.endswith(VAL_FILENAME)]
-    nchars = 0
-    for filepath in parquet_paths:
-        pf = pq.ParquetFile(filepath)
-        for rg_idx in range(pf.num_row_groups):
-            rg = pf.read_row_group(rg_idx)
-            for text in rg.column("text").to_pylist():
-                doc = text[:doc_cap] if len(text) > doc_cap else text
-                nchars += len(doc)
-                yield doc
-                if nchars >= max_chars:
-                    return
-
-
-def train_tokenizer():
-    """Train BPE tokenizer using rustbpe, save as tiktoken pickle."""
-    tokenizer_pkl = os.path.join(TOKENIZER_DIR, "tokenizer.pkl")
-    token_bytes_path = os.path.join(TOKENIZER_DIR, "token_bytes.pt")
-
-    if os.path.exists(tokenizer_pkl) and os.path.exists(token_bytes_path):
-        print(f"Tokenizer: already trained at {TOKENIZER_DIR}")
-        return
-
-    os.makedirs(TOKENIZER_DIR, exist_ok=True)
-
-    parquet_files = list_parquet_files()
-    if len(parquet_files) < 2:
-        print("Tokenizer: need at least 2 data shards (1 train + 1 val). Download more data first.")
-        sys.exit(1)
-
-    # --- Train with rustbpe ---
-    print("Tokenizer: training BPE tokenizer...")
-    t0 = time.time()
-
-    tokenizer = rustbpe.Tokenizer()
-    vocab_size_no_special = VOCAB_SIZE - len(SPECIAL_TOKENS)
-    tokenizer.train_from_iterator(text_iterator(), vocab_size_no_special, pattern=SPLIT_PATTERN)
-
-    # Build tiktoken encoding from trained merges
-    pattern = tokenizer.get_pattern()
-    mergeable_ranks = {bytes(k): v for k, v in tokenizer.get_mergeable_ranks()}
-    tokens_offset = len(mergeable_ranks)
-    special_tokens = {name: tokens_offset + i for i, name in enumerate(SPECIAL_TOKENS)}
-    enc = tiktoken.Encoding(
-        name="rustbpe",
-        pat_str=pattern,
-        mergeable_ranks=mergeable_ranks,
-        special_tokens=special_tokens,
-    )
-
-    # Save tokenizer
-    with open(tokenizer_pkl, "wb") as f:
-        pickle.dump(enc, f)
-
-    t1 = time.time()
-    print(f"Tokenizer: trained in {t1 - t0:.1f}s, saved to {tokenizer_pkl}")
-
-    # --- Build token_bytes lookup for BPB evaluation ---
-    print("Tokenizer: building token_bytes lookup...")
-    special_set = set(SPECIAL_TOKENS)
-    token_bytes_list = []
-    for token_id in range(enc.n_vocab):
-        token_str = enc.decode([token_id])
-        if token_str in special_set:
-            token_bytes_list.append(0)
-        else:
-            token_bytes_list.append(len(token_str.encode("utf-8")))
-    token_bytes_tensor = torch.tensor(token_bytes_list, dtype=torch.int32)
-    torch.save(token_bytes_tensor, token_bytes_path)
-    print(f"Tokenizer: saved token_bytes to {token_bytes_path}")
-
-    # Sanity check
-    test = "Hello world! Numbers: 123. Unicode: 你好"
-    encoded = enc.encode_ordinary(test)
-    decoded = enc.decode(encoded)
-    assert decoded == test, f"Tokenizer roundtrip failed: {test!r} -> {decoded!r}"
-    print(f"Tokenizer: sanity check passed (vocab_size={enc.n_vocab})")
-
-# ---------------------------------------------------------------------------
-# Runtime utilities (imported by train.py)
-# ---------------------------------------------------------------------------
-
-class Tokenizer:
-    """Minimal tokenizer wrapper. Training is handled above."""
-
-    def __init__(self, enc):
-        self.enc = enc
-        self.bos_token_id = enc.encode_single_token(BOS_TOKEN)
-
-    @classmethod
-    def from_directory(cls, tokenizer_dir=TOKENIZER_DIR):
-        with open(os.path.join(tokenizer_dir, "tokenizer.pkl"), "rb") as f:
-            enc = pickle.load(f)
-        return cls(enc)
-
-    def get_vocab_size(self):
-        return self.enc.n_vocab
-
-    def get_bos_token_id(self):
-        return self.bos_token_id
-
-    def encode(self, text, prepend=None, num_threads=8):
-        if prepend is not None:
-            prepend_id = prepend if isinstance(prepend, int) else self.enc.encode_single_token(prepend)
-        if isinstance(text, str):
-            ids = self.enc.encode_ordinary(text)
-            if prepend is not None:
-                ids.insert(0, prepend_id)
-        elif isinstance(text, list):
-            ids = self.enc.encode_ordinary_batch(text, num_threads=num_threads)
-            if prepend is not None:
-                for row in ids:
-                    row.insert(0, prepend_id)
-        else:
-            raise ValueError(f"Invalid input type: {type(text)}")
-        return ids
-
-    def decode(self, ids):
-        return self.enc.decode(ids)
-
-
-def get_token_bytes(device="cpu"):
-    path = os.path.join(TOKENIZER_DIR, "token_bytes.pt")
+def load_problem(path="problem.toml"):
+    """Parse problem.toml and return a dict with all settings."""
     with open(path, "rb") as f:
-        return torch.load(f, map_location=device)
+        raw = tomllib.load(f)
+
+    problem = raw["problem"]
+    data = raw["data"]
+    budget = raw.get("budget", {})
+
+    metric = problem["metric"]
+    if metric not in METRICS:
+        raise ValueError(f"Unknown metric '{metric}'. Available: {list(METRICS.keys())}")
+
+    direction = problem.get("direction", METRICS[metric]["direction"])
+
+    n_workers = budget.get("n_workers", max(1, (os.cpu_count() or 2) // 2))
+    n_workers = min(n_workers, 8)
+
+    return {
+        "name": problem["name"],
+        "task": problem["task"],
+        "metric": metric,
+        "direction": direction,
+        "data_source": data.get("source", "file"),
+        "data_config": data,
+        "time_budget": budget.get("time_budget", 300),
+        "pipeline_timeout": budget.get("pipeline_timeout", 60),
+        "n_workers": n_workers,
+        "min_evaluations": budget.get("min_evaluations", 200),
+    }
 
 
-def _document_batches(split, tokenizer_batch_size=128):
-    """Infinite iterator over document batches from parquet files."""
-    parquet_paths = list_parquet_files()
-    assert len(parquet_paths) > 0, "No parquet files found. Run prepare.py first."
-    val_path = os.path.join(DATA_DIR, VAL_FILENAME)
-    if split == "train":
-        parquet_paths = [p for p in parquet_paths if p != val_path]
-        assert len(parquet_paths) > 0, "No training shards found."
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
+def load_data(problem):
+    """Load data based on problem config. Returns (X: DataFrame, y: Series)."""
+    source = problem["data_source"]
+    data_config = problem["data_config"]
+
+    if source == "file":
+        return _load_from_file(data_config)
+    elif source == "sklearn":
+        return _load_from_sklearn(data_config)
+    elif source == "snowflake":
+        return _load_from_snowflake(data_config)
     else:
-        parquet_paths = [val_path]
-    epoch = 1
-    while True:
-        for filepath in parquet_paths:
-            pf = pq.ParquetFile(filepath)
-            for rg_idx in range(pf.num_row_groups):
-                rg = pf.read_row_group(rg_idx)
-                batch = rg.column('text').to_pylist()
-                for i in range(0, len(batch), tokenizer_batch_size):
-                    yield batch[i:i+tokenizer_batch_size], epoch
-        epoch += 1
+        raise ValueError(f"Unknown data source: {source}")
 
 
-def make_dataloader(tokenizer, B, T, split, buffer_size=1000):
-    """
-    BOS-aligned dataloader with best-fit packing.
-    Every row starts with BOS. Documents packed using best-fit to minimize cropping.
-    When no document fits remaining space, crops shortest doc to fill exactly.
-    100% utilization (no padding).
-    """
-    assert split in ["train", "val"]
-    row_capacity = T + 1
-    batches = _document_batches(split)
-    bos_token = tokenizer.get_bos_token_id()
-    doc_buffer = []
-    epoch = 1
+def _load_from_file(config):
+    """Load from CSV or Parquet file."""
+    path = config["train"]
+    target = config["target"]
+    id_column = config.get("id_column")
 
-    def refill_buffer():
-        nonlocal epoch
-        doc_batch, epoch = next(batches)
-        token_lists = tokenizer.encode(doc_batch, prepend=bos_token)
-        doc_buffer.extend(token_lists)
+    if path.endswith(".parquet"):
+        df = pd.read_parquet(path)
+    elif path.endswith(".csv"):
+        df = pd.read_csv(path)
+    else:
+        raise ValueError(f"Unsupported file format: {path}")
 
-    # Pre-allocate buffers: [inputs (B*T) | targets (B*T)]
-    row_buffer = torch.empty((B, row_capacity), dtype=torch.long)
-    cpu_buffer = torch.empty(2 * B * T, dtype=torch.long, pin_memory=True)
-    gpu_buffer = torch.empty(2 * B * T, dtype=torch.long, device="cuda")
-    cpu_inputs = cpu_buffer[:B * T].view(B, T)
-    cpu_targets = cpu_buffer[B * T:].view(B, T)
-    inputs = gpu_buffer[:B * T].view(B, T)
-    targets = gpu_buffer[B * T:].view(B, T)
+    if id_column and id_column in df.columns:
+        df = df.drop(columns=[id_column])
 
-    while True:
-        for row_idx in range(B):
-            pos = 0
-            while pos < row_capacity:
-                while len(doc_buffer) < buffer_size:
-                    refill_buffer()
+    y = df[target]
+    X = df.drop(columns=[target])
+    return X, y
 
-                remaining = row_capacity - pos
 
-                # Find largest doc that fits entirely
-                best_idx = -1
-                best_len = 0
-                for i, doc in enumerate(doc_buffer):
-                    doc_len = len(doc)
-                    if doc_len <= remaining and doc_len > best_len:
-                        best_idx = i
-                        best_len = doc_len
+def _load_from_sklearn(config):
+    """Load a built-in sklearn dataset."""
+    from sklearn import datasets
+    dataset_name = config["dataset"]
+    loader = getattr(datasets, f"fetch_{dataset_name}", None)
+    if loader is None:
+        loader = getattr(datasets, f"load_{dataset_name}", None)
+    if loader is None:
+        raise ValueError(f"Unknown sklearn dataset: {dataset_name}")
 
-                if best_idx >= 0:
-                    doc = doc_buffer.pop(best_idx)
-                    row_buffer[row_idx, pos:pos + len(doc)] = torch.tensor(doc, dtype=torch.long)
-                    pos += len(doc)
-                else:
-                    # No doc fits — crop shortest to fill remaining
-                    shortest_idx = min(range(len(doc_buffer)), key=lambda i: len(doc_buffer[i]))
-                    doc = doc_buffer.pop(shortest_idx)
-                    row_buffer[row_idx, pos:pos + remaining] = torch.tensor(doc[:remaining], dtype=torch.long)
-                    pos += remaining
+    data = loader(as_frame=True)
+    X = data.data
+    target = config.get("target", data.target.name if hasattr(data.target, 'name') else "target")
+    y = data.target
+    return X, y
 
-        cpu_inputs.copy_(row_buffer[:, :-1])
-        cpu_targets.copy_(row_buffer[:, 1:])
-        gpu_buffer.copy_(cpu_buffer, non_blocking=True)
-        yield inputs, targets, epoch
+
+def _load_from_snowflake(config):
+    """Load data from Snowflake query, cache as local parquet."""
+    cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "autoresearch", "snowflake_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    query = config["query"]
+    target = config["target"]
+    id_column = config.get("id_column")
+    connection = config.get("connection", "default")
+
+    # Cache key based on query hash
+    import hashlib
+    query_hash = hashlib.md5(query.encode()).hexdigest()[:12]
+    cache_path = os.path.join(cache_dir, f"{query_hash}.parquet")
+
+    if os.path.exists(cache_path):
+        print(f"Loading cached Snowflake data from {cache_path}")
+        df = pd.read_parquet(cache_path)
+    else:
+        print(f"Querying Snowflake (connection={connection})...")
+        try:
+            import snowflake.connector
+        except ImportError:
+            raise ImportError("snowflake-connector-python required for Snowflake data source. "
+                              "Install with: pip install snowflake-connector-python")
+
+        # Use default connection from ~/.snowflake/config.toml
+        # Pass private key passphrase from env if set (for encrypted keys)
+        connect_kwargs = {"connection_name": connection}
+        passphrase = os.environ.get("PRIVATE_KEY_PASSPHRASE")
+        if passphrase:
+            connect_kwargs["private_key_file_pwd"] = passphrase
+        conn = snowflake.connector.connect(**connect_kwargs)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            df = cursor.fetch_pandas_all()
+        finally:
+            conn.close()
+
+        df.to_parquet(cache_path)
+        print(f"Cached Snowflake data to {cache_path}")
+
+    if id_column and id_column in df.columns:
+        df = df.drop(columns=[id_column])
+
+    y = df[target]
+    X = df.drop(columns=[target])
+    return X, y
+
 
 # ---------------------------------------------------------------------------
-# Evaluation (DO NOT CHANGE — this is the fixed metric)
+# Splitting
 # ---------------------------------------------------------------------------
 
-@torch.no_grad()
-def evaluate_bpb(model, tokenizer, batch_size):
-    """
-    Bits per byte (BPB): vocab size-independent evaluation metric.
-    Sums per-token cross-entropy (in nats), sums target byte lengths,
-    then converts nats/byte to bits/byte. Special tokens (byte length 0)
-    are excluded from both sums.
-    Uses fixed MAX_SEQ_LEN so results are comparable across configs.
-    """
-    token_bytes = get_token_bytes(device="cuda")
-    val_loader = make_dataloader(tokenizer, batch_size, MAX_SEQ_LEN, "val")
-    steps = EVAL_TOKENS // (batch_size * MAX_SEQ_LEN)
-    total_nats = 0.0
-    total_bytes = 0
-    for _ in range(steps):
-        x, y, _ = next(val_loader)
-        loss_flat = model(x, y, reduction='none').view(-1)
-        y_flat = y.view(-1)
-        nbytes = token_bytes[y_flat]
-        mask = nbytes > 0
-        total_nats += (loss_flat * mask).sum().item()
-        total_bytes += nbytes.sum().item()
-    return total_nats / (math.log(2) * total_bytes)
+def split_data(X, y, val_ratio=0.2, seed=42):
+    """Split into train/val. Stratified for classification tasks."""
+    # Detect if classification based on target dtype
+    is_classification = y.dtype == object or y.dtype.name == "category" or y.nunique() < 20
+
+    stratify = y if is_classification else None
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=val_ratio, random_state=seed, stratify=stratify
+    )
+    return X_train, X_val, y_train, y_val
+
 
 # ---------------------------------------------------------------------------
-# Main
+# Auto preprocessing
+# ---------------------------------------------------------------------------
+
+def auto_preprocess(X):
+    """
+    Basic preprocessing: encode categoricals, fill missing values.
+    Returns preprocessed DataFrame.
+    """
+    X = X.copy()
+
+    # Identify column types
+    cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
+    num_cols = X.select_dtypes(include=["number"]).columns.tolist()
+
+    # Fill missing numerics with median
+    for col in num_cols:
+        if X[col].isna().any():
+            X[col] = X[col].fillna(X[col].median())
+
+    # Encode categoricals with label encoding
+    for col in cat_cols:
+        X[col] = X[col].fillna("__missing__")
+        X[col] = X[col].astype("category").cat.codes
+
+    return X
+
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+
+def evaluate(y_true, y_pred, metric_name, task_type="regression", n_features=1):
+    """Compute metric score. Returns a float."""
+    y_true = np.asarray(y_true, dtype=np.float64)
+    y_pred = np.asarray(y_pred, dtype=np.float64)
+
+    if np.any(np.isnan(y_pred)) or np.any(np.isinf(y_pred)):
+        # Return worst possible score
+        direction = METRICS[metric_name]["direction"]
+        return float("inf") if direction == "minimize" else float("-inf")
+
+    fn_name = METRICS[metric_name]["fn"]
+    fn = _METRIC_FNS[fn_name]
+    return fn(y_true, y_pred, n_features=n_features)
+
+
+def score_to_fitness(score, metric_name):
+    """Normalize score so that higher = better (for evolution selection)."""
+    direction = METRICS[metric_name]["direction"]
+    if direction == "maximize":
+        return score
+    else:
+        return -score
+
+
+def get_metric_direction(metric_name):
+    """Return 'minimize' or 'maximize'."""
+    return METRICS[metric_name]["direction"]
+
+
+# ---------------------------------------------------------------------------
+# Main (standalone test)
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prepare data and tokenizer for autoresearch")
-    parser.add_argument("--num-shards", type=int, default=10, help="Number of training shards to download (-1 = all). Val shard is always pinned.")
-    parser.add_argument("--download-workers", type=int, default=8, help="Number of parallel download workers")
-    args = parser.parse_args()
+    problem_path = sys.argv[1] if len(sys.argv) > 1 else "problem.toml"
+    problem = load_problem(problem_path)
+    print(f"Problem: {problem['name']} ({problem['task']})")
+    print(f"Metric: {problem['metric']} ({problem['direction']})")
 
-    num_shards = MAX_SHARD if args.num_shards == -1 else args.num_shards
+    X, y = load_data(problem)
+    print(f"Data shape: X={X.shape}, y={y.shape}")
+    print(f"Features: {list(X.columns)}")
 
-    print(f"Cache directory: {CACHE_DIR}")
-    print()
+    X = auto_preprocess(X)
+    X_train, X_val, y_train, y_val = split_data(X, y)
+    print(f"Train: {X_train.shape}, Val: {X_val.shape}")
 
-    # Step 1: Download data
-    download_data(num_shards, download_workers=args.download_workers)
-    print()
-
-    # Step 2: Train tokenizer
-    train_tokenizer()
-    print()
-    print("Done! Ready to train.")
+    # Quick sanity check with a simple model
+    from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+    if problem["task"] == "regression":
+        model = RandomForestRegressor(n_estimators=10, random_state=42)
+    else:
+        model = RandomForestClassifier(n_estimators=10, random_state=42)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_val)
+    score = evaluate(y_val, y_pred, problem["metric"], problem["task"])
+    print(f"Sanity check score ({problem['metric']}): {score:.6f}")

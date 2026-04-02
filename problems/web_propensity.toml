@@ -1,0 +1,84 @@
+[problem]
+name = "web-propensity"
+task = "classification"
+metric = "auc"
+direction = "maximize"
+
+[data]
+source = "snowflake"
+query = """
+WITH feature_window AS (
+    SELECT
+        PERSON_ID,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'web_pageview' THEN EVENT_COUNT ELSE 0 END) AS total_pageviews,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'ad_impression' THEN EVENT_COUNT ELSE 0 END) AS total_ad_impressions,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'ad_click' THEN EVENT_COUNT ELSE 0 END) AS total_ad_clicks,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'form_submit' THEN EVENT_COUNT ELSE 0 END) AS total_form_submits,
+        COUNT(DISTINCT ENGAGEMENT_MONTH) AS active_months,
+        COUNT(DISTINCT BRAND_NAME) AS brands_engaged,
+        MAX(ENGAGEMENT_MONTH) AS last_web_month,
+        SUM(CASE WHEN ENGAGEMENT_MONTH >= '2025-10-01' THEN EVENT_COUNT ELSE 0 END) AS recent_3m_events,
+        SUM(CASE WHEN ENGAGEMENT_MONTH >= '2025-07-01' AND ENGAGEMENT_MONTH < '2025-10-01' THEN EVENT_COUNT ELSE 0 END) AS mid_3m_events,
+        SUM(CASE WHEN ENGAGEMENT_MONTH < '2025-07-01' THEN EVENT_COUNT ELSE 0 END) AS early_6m_events,
+        SUM(CASE WHEN IS_FIRST_BRAND_ENGAGEMENT_MONTH THEN 1 ELSE 0 END) AS new_brand_engagements
+    FROM PERSON_DB_DEV.MJH_CHAID_CORE.PERSON_BRAND_ENGAGEMENT_MONTHLY
+    WHERE ENGAGEMENT_TYPE IN ('web', 'ad', 'form')
+      AND ENGAGEMENT_MONTH >= '2025-01-01'
+      AND ENGAGEMENT_MONTH < '2026-01-01'
+    GROUP BY PERSON_ID
+),
+target AS (
+    SELECT DISTINCT PERSON_ID, 1 AS web_engaged
+    FROM PERSON_DB_DEV.MJH_CHAID_CORE.PERSON_BRAND_ENGAGEMENT_MONTHLY
+    WHERE ENGAGEMENT_TYPE IN ('web', 'ad', 'form')
+      AND ENGAGEMENT_MONTH = '2026-01-01'
+),
+cross_channel AS (
+    SELECT
+        PERSON_ID,
+        SUM(CASE WHEN ENGAGEMENT_TYPE = 'email' THEN EVENT_COUNT ELSE 0 END) AS email_events_12m,
+        SUM(CASE WHEN ENGAGEMENT_TYPE = 'event' THEN EVENT_COUNT ELSE 0 END) AS event_events_12m
+    FROM PERSON_DB_DEV.MJH_CHAID_CORE.PERSON_BRAND_ENGAGEMENT_MONTHLY
+    WHERE ENGAGEMENT_TYPE IN ('email', 'event')
+      AND ENGAGEMENT_MONTH >= '2025-01-01'
+      AND ENGAGEMENT_MONTH < '2026-01-01'
+    GROUP BY PERSON_ID
+)
+SELECT
+    f.PERSON_ID,
+    p.PERSON_TYPE,
+    p.GENDER,
+    p.AGE,
+    p.SPECIALTY_PRIMARY_GROUP,
+    p.IS_HOSPITALIST,
+    p.IS_EXECUTIVE,
+    p.IS_KEY_OPINION_LEADER,
+    p.GRADUATION_YEAR,
+    f.total_pageviews,
+    f.total_ad_impressions,
+    f.total_ad_clicks,
+    f.total_form_submits,
+    f.active_months,
+    f.brands_engaged,
+    DATEDIFF('month', f.last_web_month, '2026-01-01') AS months_since_last_web,
+    f.recent_3m_events,
+    f.mid_3m_events,
+    f.early_6m_events,
+    f.new_brand_engagements,
+    COALESCE(c.email_events_12m, 0) AS email_events_12m,
+    COALESCE(c.event_events_12m, 0) AS event_events_12m,
+    COALESCE(t.web_engaged, 0) AS web_engaged
+FROM feature_window f
+JOIN PERSON_DB_DEV.MJH_CHAID_CORE.PERSON p ON f.PERSON_ID = p.PERSON_ID
+LEFT JOIN target t ON f.PERSON_ID = t.PERSON_ID
+LEFT JOIN cross_channel c ON f.PERSON_ID = c.PERSON_ID
+"""
+target = "WEB_ENGAGED"
+id_column = "PERSON_ID"
+connection = "default"
+
+[budget]
+time_budget = 300
+pipeline_timeout = 60
+# n_workers = 4
+# min_evaluations = 200

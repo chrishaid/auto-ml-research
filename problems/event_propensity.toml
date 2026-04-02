@@ -1,0 +1,88 @@
+[problem]
+name = "event-propensity"
+task = "classification"
+metric = "auc"
+direction = "maximize"
+
+[data]
+source = "snowflake"
+query = """
+WITH feature_window AS (
+    SELECT
+        PERSON_ID,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'event_register' THEN EVENT_COUNT ELSE 0 END) AS total_event_registers,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'event_attend' THEN EVENT_COUNT ELSE 0 END) AS total_event_attends,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'education_register' THEN EVENT_COUNT ELSE 0 END) AS total_edu_registers,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'education_complete' THEN EVENT_COUNT ELSE 0 END) AS total_edu_completes,
+        SUM(CASE WHEN ENGAGEMENT_SUBTYPE = 'survey_response' THEN EVENT_COUNT ELSE 0 END) AS total_survey_responses,
+        COUNT(DISTINCT ENGAGEMENT_MONTH) AS active_months,
+        COUNT(DISTINCT BRAND_NAME) AS brands_engaged,
+        MAX(ENGAGEMENT_MONTH) AS last_event_month,
+        SUM(CASE WHEN ENGAGEMENT_MONTH >= '2025-10-01' THEN EVENT_COUNT ELSE 0 END) AS recent_3m_events,
+        SUM(CASE WHEN ENGAGEMENT_MONTH >= '2025-07-01' AND ENGAGEMENT_MONTH < '2025-10-01' THEN EVENT_COUNT ELSE 0 END) AS mid_3m_events,
+        SUM(CASE WHEN ENGAGEMENT_MONTH < '2025-07-01' THEN EVENT_COUNT ELSE 0 END) AS early_6m_events,
+        SUM(CASE WHEN IS_FIRST_BRAND_ENGAGEMENT_MONTH THEN 1 ELSE 0 END) AS new_brand_engagements
+    FROM PERSON_DB_DEV.MJH_CHAID_CORE.PERSON_BRAND_ENGAGEMENT_MONTHLY
+    WHERE ENGAGEMENT_TYPE IN ('event', 'education')
+      AND ENGAGEMENT_MONTH >= '2025-01-01'
+      AND ENGAGEMENT_MONTH < '2026-01-01'
+    GROUP BY PERSON_ID
+),
+target AS (
+    SELECT DISTINCT PERSON_ID, 1 AS event_engaged
+    FROM PERSON_DB_DEV.MJH_CHAID_CORE.PERSON_BRAND_ENGAGEMENT_MONTHLY
+    WHERE ENGAGEMENT_TYPE IN ('event', 'education')
+      AND ENGAGEMENT_MONTH = '2026-01-01'
+),
+cross_channel AS (
+    SELECT
+        PERSON_ID,
+        SUM(CASE WHEN ENGAGEMENT_TYPE = 'email' THEN EVENT_COUNT ELSE 0 END) AS email_events_12m,
+        SUM(CASE WHEN ENGAGEMENT_TYPE = 'web' THEN EVENT_COUNT ELSE 0 END) AS web_events_12m,
+        SUM(CASE WHEN ENGAGEMENT_TYPE = 'ad' THEN EVENT_COUNT ELSE 0 END) AS ad_events_12m
+    FROM PERSON_DB_DEV.MJH_CHAID_CORE.PERSON_BRAND_ENGAGEMENT_MONTHLY
+    WHERE ENGAGEMENT_TYPE IN ('email', 'web', 'ad')
+      AND ENGAGEMENT_MONTH >= '2025-01-01'
+      AND ENGAGEMENT_MONTH < '2026-01-01'
+    GROUP BY PERSON_ID
+)
+SELECT
+    f.PERSON_ID,
+    p.PERSON_TYPE,
+    p.GENDER,
+    p.AGE,
+    p.SPECIALTY_PRIMARY_GROUP,
+    p.IS_HOSPITALIST,
+    p.IS_EXECUTIVE,
+    p.IS_KEY_OPINION_LEADER,
+    p.GRADUATION_YEAR,
+    f.total_event_registers,
+    f.total_event_attends,
+    f.total_edu_registers,
+    f.total_edu_completes,
+    f.total_survey_responses,
+    f.active_months,
+    f.brands_engaged,
+    DATEDIFF('month', f.last_event_month, '2026-01-01') AS months_since_last_event,
+    f.recent_3m_events,
+    f.mid_3m_events,
+    f.early_6m_events,
+    f.new_brand_engagements,
+    COALESCE(c.email_events_12m, 0) AS email_events_12m,
+    COALESCE(c.web_events_12m, 0) AS web_events_12m,
+    COALESCE(c.ad_events_12m, 0) AS ad_events_12m,
+    COALESCE(t.event_engaged, 0) AS event_engaged
+FROM feature_window f
+JOIN PERSON_DB_DEV.MJH_CHAID_CORE.PERSON p ON f.PERSON_ID = p.PERSON_ID
+LEFT JOIN target t ON f.PERSON_ID = t.PERSON_ID
+LEFT JOIN cross_channel c ON f.PERSON_ID = c.PERSON_ID
+"""
+target = "EVENT_ENGAGED"
+id_column = "PERSON_ID"
+connection = "default"
+
+[budget]
+time_budget = 300
+pipeline_timeout = 60
+# n_workers = 4
+# min_evaluations = 200
