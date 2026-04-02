@@ -35,30 +35,16 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra snowflake
 
-      - name: Configure Snowflake connection
+      - name: Download cached data from release
         if: inputs.problem_config != 'problem.toml'
         env:
-          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
-          PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_KEY_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p ~/.snowflake
-          echo "$SNOWFLAKE_PRIVATE_KEY" | base64 -d > ~/.snowflake/rsa_key.p8
-          chmod 600 ~/.snowflake/rsa_key.p8
-          cat > ~/.snowflake/config.toml << EOF
-          default_connection_name = "default"
-          [connections.default]
-          account = "${SNOWFLAKE_ACCOUNT}"
-          user = "${SNOWFLAKE_USER}"
-          database = "PERSON_DB_DEV"
-          schema = "MJH_CHAID_CORE"
-          warehouse = "CHAID"
-          role = "ANALYTICS_DEVELOPER"
-          authenticator = "SNOWFLAKE_JWT"
-          private_key_file = "$HOME/.snowflake/rsa_key.p8"
-          EOF
-          chmod 600 ~/.snowflake/config.toml
+          mkdir -p ~/.cache/autoresearch/snowflake_cache
+          gh release download data-cache-v1 \
+            --dir ~/.cache/autoresearch/snowflake_cache \
+            --repo ${{ github.repository }}
+          ls -lh ~/.cache/autoresearch/snowflake_cache/
 
       - name: Select problem config
         run: |
@@ -77,8 +63,6 @@ jobs:
           cat problem.toml
 
       - name: Run evolution
-        env:
-          PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_KEY_PASSPHRASE }}
         run: uv run evolve.py 2>&1 | tee run.log
 
       - name: Print results
