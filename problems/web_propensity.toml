@@ -26,11 +26,15 @@ WITH feature_window AS (
       AND ENGAGEMENT_MONTH >= '2025-01-01'
       AND ENGAGEMENT_MONTH < '2026-01-01'
     GROUP BY PERSON_ID
+    -- Filter to users with at least one active web behavior (not just passive ad impressions)
+    HAVING SUM(CASE WHEN ENGAGEMENT_SUBTYPE IN ('web_pageview', 'ad_click', 'form_submit') THEN EVENT_COUNT ELSE 0 END) > 0
 ),
 target AS (
+    -- Target: active web engagement only (pageviews, clicks, form submits), excluding passive ad impressions
     SELECT DISTINCT PERSON_ID, 1 AS web_engaged
     FROM PERSON_DB_DEV.MJH_CHAID_CORE.PERSON_BRAND_ENGAGEMENT_MONTHLY
-    WHERE ENGAGEMENT_TYPE IN ('web', 'ad', 'form')
+    WHERE ENGAGEMENT_TYPE IN ('web', 'form')
+      AND ENGAGEMENT_SUBTYPE IN ('web_pageview', 'ad_click', 'form_submit')
       AND ENGAGEMENT_MONTH = '2026-01-01'
 ),
 cross_channel AS (
@@ -78,7 +82,8 @@ id_column = "PERSON_ID"
 connection = "default"
 
 [budget]
-time_budget = 300
-pipeline_timeout = 60
-# n_workers = 4
-# min_evaluations = 200
+time_budget = 1200
+pipeline_timeout = 30
+n_workers = 1
+max_rows = 50000
+min_evaluations = 2000

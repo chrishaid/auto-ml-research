@@ -30,8 +30,11 @@ from sklearn.ensemble import (
     AdaBoostRegressor, AdaBoostClassifier,
 )
 from sklearn.linear_model import (
-    Ridge, Lasso, ElasticNet,
+    LinearRegression,
+    Ridge, RidgeClassifier, Lasso, ElasticNet,
     LogisticRegression,
+    SGDRegressor, SGDClassifier,
+    BayesianRidge,
 )
 from sklearn.svm import SVR, SVC
 from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
@@ -236,26 +239,68 @@ ALGORITHMS = {
             "max_features": lambda: choice(["sqrt", "log2", 0.5, 0.8, 1.0]),
         },
     },
+    "OLS": {
+        "regressor": LinearRegression,
+        "classifier": LogisticRegression,  # OLS analog for classification
+        "params": {},  # no hyperparameters for basic OLS
+    },
+    "Logistic": {
+        "regressor": Ridge,  # fallback for regression tasks
+        "classifier": LogisticRegression,
+        "params": {
+            "C": lambda: log_uniform(0.001, 100.0),
+            "penalty": lambda: choice(["l2"]),
+            "max_iter": lambda: 1000,
+        },
+    },
     "Ridge": {
         "regressor": Ridge,
-        "classifier": LogisticRegression,  # Ridge classifier analog
+        "classifier": RidgeClassifier,
         "params": {
             "alpha": lambda: log_uniform(0.001, 100.0),
         },
     },
     "Lasso": {
         "regressor": Lasso,
-        "classifier": LogisticRegression,
+        "classifier": LogisticRegression,  # L1-penalized logistic
         "params": {
             "alpha": lambda: log_uniform(0.001, 10.0),
+            "C": lambda: log_uniform(0.001, 100.0),   # for classifier
+            "penalty": lambda: choice(["l1"]),
+            "solver": lambda: choice(["liblinear", "saga"]),
+            "max_iter": lambda: 1000,
         },
     },
     "ElasticNet": {
         "regressor": ElasticNet,
-        "classifier": LogisticRegression,
+        "classifier": SGDClassifier,  # SGD with elasticnet penalty
         "params": {
             "alpha": lambda: log_uniform(0.001, 10.0),
             "l1_ratio": lambda: uniform(0.1, 0.9),
+            "loss": lambda: choice(["log_loss"]),  # for classifier
+            "max_iter": lambda: 1000,
+        },
+    },
+    "SGD": {
+        "regressor": SGDRegressor,
+        "classifier": SGDClassifier,
+        "params": {
+            "alpha": lambda: log_uniform(1e-5, 1.0),
+            "l1_ratio": lambda: uniform(0.0, 1.0),
+            "penalty": lambda: choice(["l1", "l2", "elasticnet"]),
+            "loss": lambda: choice(["log_loss"]),  # for classifier: log_loss
+            "max_iter": lambda: 1000,
+        },
+    },
+    "BayesianRidge": {
+        "regressor": BayesianRidge,
+        "classifier": LogisticRegression,  # no Bayesian logistic in sklearn
+        "params": {
+            "alpha_1": lambda: log_uniform(1e-7, 1e-3),
+            "alpha_2": lambda: log_uniform(1e-7, 1e-3),
+            "lambda_1": lambda: log_uniform(1e-7, 1e-3),
+            "lambda_2": lambda: log_uniform(1e-7, 1e-3),
+            "max_iter": lambda: 500,
         },
     },
     "SVR": {
@@ -441,6 +486,110 @@ try:
             "epochs": lambda: int_range(50, 200),
             "batch_size": lambda: choice([32, 64, 128]),
             "dropout": lambda: uniform(0.0, 0.5),
+        },
+    }
+except ImportError:
+    pass
+
+# Optional: GAMs (Generalized Additive Models)
+try:
+    from pygam import LinearGAM as _LinearGAM, LogisticGAM as _LogisticGAM
+    from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
+
+    class GAMRegressor(BaseEstimator, RegressorMixin):
+        """Sklearn-compatible wrapper for pygam LinearGAM."""
+        def __init__(self, n_splines=20, lam=0.6, max_iter=100):
+            self.n_splines = n_splines
+            self.lam = lam
+            self.max_iter = max_iter
+
+        def fit(self, X, y):
+            self.gam_ = _LinearGAM(n_splines=self.n_splines, lam=self.lam,
+                                    max_iter=self.max_iter).fit(X, y)
+            return self
+
+        def predict(self, X):
+            return self.gam_.predict(X)
+
+    class GAMClassifier(BaseEstimator, ClassifierMixin):
+        """Sklearn-compatible wrapper for pygam LogisticGAM with predict_proba."""
+        def __init__(self, n_splines=20, lam=0.6, max_iter=100):
+            self.n_splines = n_splines
+            self.lam = lam
+            self.max_iter = max_iter
+
+        def fit(self, X, y):
+            import numpy as _np
+            self.classes_ = _np.unique(y)
+            self.gam_ = _LogisticGAM(n_splines=self.n_splines, lam=self.lam,
+                                      max_iter=self.max_iter).fit(X, y)
+            return self
+
+        def predict(self, X):
+            return (self.gam_.predict_proba(X) >= 0.5).astype(int)
+
+        def predict_proba(self, X):
+            import numpy as _np
+            p1 = self.gam_.predict_proba(X)
+            return _np.column_stack([1 - p1, p1])
+
+    ALGORITHMS["GAM"] = {
+        "regressor": GAMRegressor,
+        "classifier": GAMClassifier,
+        "params": {
+            "n_splines": lambda: int_range(5, 30),
+            "lam": lambda: log_uniform(0.01, 10.0),
+            "max_iter": lambda: 100,
+        },
+    }
+except ImportError:
+    pass
+
+# Optional: Survival models (wrapped for binary classification)
+try:
+    from sksurv.linear_model import CoxPHSurvivalAnalysis as _CoxPH
+    from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
+
+    class CoxPHClassifier(BaseEstimator, ClassifierMixin):
+        """Wrapper that adapts CoxPH for binary classification.
+
+        Treats the binary target as (event=y, time=1 for all).
+        Uses the risk score as the predicted probability.
+        """
+        def __init__(self, alpha=0.01, n_iter=100):
+            self.alpha = alpha
+            self.n_iter = n_iter
+
+        def fit(self, X, y):
+            import numpy as _np
+            self.classes_ = _np.array([0, 1])
+            # Build structured array: (event, time)
+            y_surv = _np.array(
+                [(bool(yi), 1.0) for yi in y],
+                dtype=[("event", bool), ("time", float)]
+            )
+            self.model_ = _CoxPH(alpha=self.alpha, n_iter=self.n_iter)
+            self.model_.fit(X, y_surv)
+            return self
+
+        def predict(self, X):
+            import numpy as _np
+            scores = self.model_.predict(X)
+            return (scores > _np.median(scores)).astype(int)
+
+        def predict_proba(self, X):
+            import numpy as _np
+            scores = self.model_.predict(X)
+            # Convert risk scores to pseudo-probabilities via sigmoid
+            probs = 1 / (1 + _np.exp(-scores))
+            return _np.column_stack([1 - probs, probs])
+
+    ALGORITHMS["CoxPH"] = {
+        "regressor": None,  # CoxPH is classification/survival only
+        "classifier": CoxPHClassifier,
+        "params": {
+            "alpha": lambda: log_uniform(0.001, 10.0),
+            "n_iter": lambda: 100,
         },
     }
 except ImportError:

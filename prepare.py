@@ -129,6 +129,7 @@ def load_problem(path="problem.toml"):
         "pipeline_timeout": budget.get("pipeline_timeout", 60),
         "n_workers": n_workers,
         "min_evaluations": budget.get("min_evaluations", 200),
+        "max_rows": budget.get("max_rows", None),
     }
 
 
@@ -142,13 +143,24 @@ def load_data(problem):
     data_config = problem["data_config"]
 
     if source == "file":
-        return _load_from_file(data_config)
+        X, y = _load_from_file(data_config)
     elif source == "sklearn":
-        return _load_from_sklearn(data_config)
+        X, y = _load_from_sklearn(data_config)
     elif source == "snowflake":
-        return _load_from_snowflake(data_config)
+        X, y = _load_from_snowflake(data_config)
     else:
         raise ValueError(f"Unknown data source: {source}")
+
+    max_rows = problem.get("max_rows")
+    if max_rows and len(X) > max_rows:
+        print(f"Subsampling from {len(X)} to {max_rows} rows (stratified)...")
+        is_clf = y.dtype == object or y.dtype.name == "category" or y.nunique() < 20
+        X, _, y, _ = train_test_split(
+            X, y, train_size=max_rows, random_state=42,
+            stratify=y if is_clf else None,
+        )
+
+    return X, y
 
 
 def _load_from_file(config):

@@ -89,7 +89,20 @@ def build_sklearn_pipeline(config: PipelineConfig, registry: dict, task_type: st
     entry = registry["algorithms"][alg_name]
     cls_key = "regressor" if task_type == "regression" else "classifier"
     cls = entry[cls_key]
-    steps.append(("algorithm", cls(**alg_params)))
+    if cls is None:
+        raise ValueError(f"Algorithm '{alg_name}' has no {cls_key} implementation")
+    # Filter params to only those the constructor accepts (handles shared param dicts
+    # where regressor and classifier have different valid params)
+    import inspect
+    sig = inspect.signature(cls.__init__)
+    valid_params = set(sig.parameters.keys()) - {"self"}
+    # If **kwargs is accepted, pass everything
+    has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+    if has_kwargs:
+        filtered_params = alg_params
+    else:
+        filtered_params = {k: v for k, v in alg_params.items() if k in valid_params}
+    steps.append(("algorithm", cls(**filtered_params)))
 
     return Pipeline(steps) if steps else Pipeline([("passthrough", "passthrough")])
 
@@ -105,8 +118,13 @@ def _run_pipeline(config_dict, registry, task_type, X_train, y_train, X_val, y_v
         if metric_name in ("auc", "logloss"):
             try:
                 y_pred = pipe.predict_proba(X_val)[:, 1]
-            except (AttributeError, NotImplementedError):
-                y_pred = pipe.predict(X_val)
+            except (AttributeError, NotImplementedError, IndexError):
+                # Fallback: decision_function for models without predict_proba
+                algo = pipe.named_steps.get("algorithm")
+                if hasattr(algo, "decision_function"):
+                    y_pred = pipe.decision_function(X_val)
+                else:
+                    y_pred = pipe.predict(X_val)
         else:
             y_pred = pipe.predict(X_val)
         elapsed = time.time() - t0
@@ -116,45 +134,73 @@ def _run_pipeline(config_dict, registry, task_type, X_train, y_train, X_val, y_v
         return (None, traceback.format_exc())
 
 
+def _subprocess_worker(conn, config_dict, task_type, X_train, y_train, X_val, y_val, metric_name):
+    """Run in a child process. Reconstructs registry locally to avoid pickling lambdas."""
+    try:
+        from search_space import get_registry
+        from prepare import evaluate
+        registry = get_registry()
+        cfg = PipelineConfig.from_dict(config_dict)
+        pipe = build_sklearn_pipeline(cfg, registry, task_type)
+        fit_t0 = time.time()
+        pipe.fit(X_train, y_train)
+        if metric_name in ("auc", "logloss"):
+            try:
+                y_pred = pipe.predict_proba(X_val)[:, 1]
+            except (AttributeError, NotImplementedError, IndexError):
+                # Fallback: decision_function for models without predict_proba
+                algo = pipe.named_steps.get("algorithm")
+                if hasattr(algo, "decision_function"):
+                    y_pred = pipe.decision_function(X_val)
+                else:
+                    y_pred = pipe.predict(X_val)
+        else:
+            y_pred = pipe.predict(X_val)
+        elapsed = time.time() - fit_t0
+        score = evaluate(y_val, y_pred, metric_name, task_type)
+        conn.send((score, elapsed, None))
+    except Exception:
+        conn.send((None, 0.0, traceback.format_exc()))
+    finally:
+        conn.close()
+
+
 def execute_pipeline(config: PipelineConfig, registry: dict, task_type: str,
                      X_train, y_train, X_val, y_val, metric_name: str,
                      timeout: int = 60):
     """
-    Fit and evaluate a pipeline with timeout protection via threading.
+    Fit and evaluate a pipeline with timeout protection via subprocess.
+    Uses multiprocessing so timed-out work is actually killed (not left as
+    a zombie daemon thread consuming CPU).
     Returns (score, elapsed_seconds, error_string_or_None).
     """
-    import threading
+    import multiprocessing as mp
 
-    result_holder = [None, 0.0, None]  # score, elapsed, error
-
-    def _worker():
-        try:
-            pipe = build_sklearn_pipeline(config, registry, task_type)
-            t0 = time.time()
-            pipe.fit(X_train, y_train)
-            if metric_name in ("auc", "logloss"):
-                try:
-                    y_pred = pipe.predict_proba(X_val)[:, 1]
-                except (AttributeError, NotImplementedError):
-                    y_pred = pipe.predict(X_val)
-            else:
-                y_pred = pipe.predict(X_val)
-            elapsed = time.time() - t0
-            from prepare import evaluate
-            score = evaluate(y_val, y_pred, metric_name, task_type)
-            result_holder[0] = score
-            result_holder[1] = elapsed
-        except Exception:
-            result_holder[2] = traceback.format_exc()
-
-    thread = threading.Thread(target=_worker, daemon=True)
     t0 = time.time()
-    thread.start()
-    thread.join(timeout=timeout)
-    elapsed = time.time() - t0
+    parent_conn, child_conn = mp.Pipe(duplex=False)
 
-    if thread.is_alive():
-        # Thread still running — treat as timeout (daemon thread will be cleaned up)
-        return (None, elapsed, "timeout")
+    proc = mp.Process(
+        target=_subprocess_worker,
+        args=(child_conn, config.to_dict(), task_type,
+              X_train, y_train, X_val, y_val, metric_name),
+    )
+    proc.start()
+    child_conn.close()  # parent doesn't write
 
-    return (result_holder[0], result_holder[1], result_holder[2])
+    # Wait for result with timeout
+    if parent_conn.poll(timeout):
+        try:
+            score, elapsed, error = parent_conn.recv()
+        except EOFError:
+            score, elapsed, error = None, time.time() - t0, "process crashed"
+    else:
+        score, elapsed, error = None, time.time() - t0, "timeout"
+
+    if proc.is_alive():
+        proc.kill()
+        proc.join(timeout=2)
+    else:
+        proc.join(timeout=2)
+
+    parent_conn.close()
+    return (score, elapsed, error)

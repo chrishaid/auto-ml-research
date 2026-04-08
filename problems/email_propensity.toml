@@ -76,7 +76,8 @@ id_column = "PERSON_ID"
 connection = "default"
 
 [budget]
-time_budget = 300
-pipeline_timeout = 60
-# n_workers = 4
-# min_evaluations = 200
+time_budget = 1200
+pipeline_timeout = 30
+n_workers = 1
+max_rows = 50000
+min_evaluations = 2000
