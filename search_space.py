@@ -595,6 +595,224 @@ try:
 except ImportError:
     pass
 
+# Optional: Multi-level / Hierarchical models
+try:
+    from merf import MERF as _MERF
+    from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
+
+    class _HierarchicalBase(BaseEstimator):
+        """Base class for multi-level models.
+
+        Auto-detects a grouping column from the input data. Uses the column
+        with the fewest unique values (>1, <50) as the cluster variable.
+        Falls back to random grouping if no suitable column is found.
+        """
+        def __init__(self, max_iterations=5, n_estimators=100, group_col=None):
+            self.max_iterations = max_iterations
+            self.n_estimators = n_estimators
+            self.group_col = group_col  # column index to use as group; None = auto-detect
+
+        def _detect_group_col(self, X):
+            """Find best grouping column: low cardinality, >1 unique value."""
+            import numpy as _np
+            best_col, best_nunique = None, float("inf")
+            for j in range(X.shape[1]):
+                nunique = len(_np.unique(X[:, j]))
+                if 2 <= nunique < 50 and nunique < best_nunique:
+                    best_col = j
+                    best_nunique = nunique
+            return best_col
+
+        def _split_group(self, X):
+            """Split X into (X_fixed, Z, clusters)."""
+            import numpy as _np
+            import pandas as _pd
+
+            col = self.group_col
+            if col is None:
+                col = self._detect_group_col(X)
+            if col is None:
+                # No suitable grouping column — use single group
+                clusters = _pd.Series(["all"] * X.shape[0])
+                X_fixed = _pd.DataFrame(X)
+                Z = _np.ones((X.shape[0], 1))
+                return X_fixed, Z, clusters
+
+            self._group_col_idx = col
+            clusters = _pd.Series(X[:, col].astype(str))
+            # Remove group column from fixed effects
+            mask = [i for i in range(X.shape[1]) if i != col]
+            X_fixed = _pd.DataFrame(X[:, mask])
+            Z = _np.ones((X.shape[0], 1))
+            return X_fixed, Z, clusters
+
+    class MERFRegressor(_HierarchicalBase, RegressorMixin):
+        """Mixed Effects Random Forest for regression."""
+        def fit(self, X, y):
+            from sklearn.ensemble import RandomForestRegressor as _RFR
+            X_fixed, Z, clusters = self._split_group(X)
+            self.merf_ = _MERF(
+                fixed_effects_model=_RFR(n_estimators=self.n_estimators, n_jobs=-1),
+                max_iterations=self.max_iterations,
+            )
+            self.merf_.fit(X_fixed, Z, clusters, y)
+            return self
+
+        def predict(self, X):
+            X_fixed, Z, clusters = self._split_group(X)
+            return self.merf_.predict(X_fixed, Z, clusters)
+
+    class MERFClassifier(_HierarchicalBase, ClassifierMixin):
+        """Mixed Effects Random Forest for classification.
+
+        MERF is natively a regressor — we wrap it to produce probabilities
+        by clipping predictions to [0, 1] and using them as P(y=1).
+        """
+        def fit(self, X, y):
+            import numpy as _np
+            self.classes_ = _np.array([0, 1])
+            from sklearn.ensemble import RandomForestRegressor as _RFR
+            X_fixed, Z, clusters = self._split_group(X)
+            self.merf_ = _MERF(
+                fixed_effects_model=_RFR(n_estimators=self.n_estimators, n_jobs=-1),
+                max_iterations=self.max_iterations,
+            )
+            self.merf_.fit(X_fixed, Z, clusters, y.astype(float))
+            return self
+
+        def predict(self, X):
+            import numpy as _np
+            probs = self.predict_proba(X)[:, 1]
+            return (probs >= 0.5).astype(int)
+
+        def predict_proba(self, X):
+            import numpy as _np
+            X_fixed, Z, clusters = self._split_group(X)
+            raw = self.merf_.predict(X_fixed, Z, clusters)
+            p1 = _np.clip(raw, 0, 1)
+            return _np.column_stack([1 - p1, p1])
+
+    ALGORITHMS["MERF"] = {
+        "regressor": MERFRegressor,
+        "classifier": MERFClassifier,
+        "params": {
+            "max_iterations": lambda: int_range(3, 10),
+            "n_estimators": lambda: int_range(50, 200),
+        },
+    }
+except ImportError:
+    pass
+
+try:
+    import statsmodels.api as _sm
+    from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
+
+    class MixedLMRegressor(BaseEstimator, RegressorMixin):
+        """Sklearn-compatible wrapper for statsmodels MixedLM."""
+        def __init__(self, group_col=None):
+            self.group_col = group_col
+
+        def _detect_group_col(self, X):
+            import numpy as _np
+            best_col, best_nunique = None, float("inf")
+            for j in range(X.shape[1]):
+                nunique = len(_np.unique(X[:, j]))
+                if 2 <= nunique < 50 and nunique < best_nunique:
+                    best_col = j
+                    best_nunique = nunique
+            return best_col
+
+        def fit(self, X, y):
+            import numpy as _np
+            import pandas as _pd
+
+            col = self.group_col if self.group_col is not None else self._detect_group_col(X)
+            self._group_col_idx = col
+
+            if col is not None:
+                groups = X[:, col].astype(str)
+                mask = [i for i in range(X.shape[1]) if i != col]
+                X_fixed = _sm.add_constant(_pd.DataFrame(X[:, mask]))
+            else:
+                groups = _np.zeros(X.shape[0]).astype(str)
+                X_fixed = _sm.add_constant(_pd.DataFrame(X))
+
+            self.model_ = _sm.MixedLM(y, X_fixed, groups=groups).fit(disp=False)
+            self._ncols = X_fixed.shape[1]
+            return self
+
+        def predict(self, X):
+            import numpy as _np
+            import pandas as _pd
+            col = self._group_col_idx
+            if col is not None:
+                mask = [i for i in range(X.shape[1]) if i != col]
+                X_fixed = _sm.add_constant(_pd.DataFrame(X[:, mask]))
+            else:
+                X_fixed = _sm.add_constant(_pd.DataFrame(X))
+            return self.model_.predict(X_fixed)
+
+    class MixedLMClassifier(BaseEstimator, ClassifierMixin):
+        """Mixed linear model for classification via sigmoid link."""
+        def __init__(self, group_col=None):
+            self.group_col = group_col
+
+        def _detect_group_col(self, X):
+            import numpy as _np
+            best_col, best_nunique = None, float("inf")
+            for j in range(X.shape[1]):
+                nunique = len(_np.unique(X[:, j]))
+                if 2 <= nunique < 50 and nunique < best_nunique:
+                    best_col = j
+                    best_nunique = nunique
+            return best_col
+
+        def fit(self, X, y):
+            import numpy as _np
+            import pandas as _pd
+            self.classes_ = _np.array([0, 1])
+
+            col = self.group_col if self.group_col is not None else self._detect_group_col(X)
+            self._group_col_idx = col
+
+            if col is not None:
+                groups = X[:, col].astype(str)
+                mask = [i for i in range(X.shape[1]) if i != col]
+                X_fixed = _sm.add_constant(_pd.DataFrame(X[:, mask]))
+            else:
+                groups = _np.zeros(X.shape[0]).astype(str)
+                X_fixed = _sm.add_constant(_pd.DataFrame(X))
+
+            self.model_ = _sm.MixedLM(y.astype(float), X_fixed, groups=groups).fit(disp=False)
+            return self
+
+        def predict(self, X):
+            import numpy as _np
+            probs = self.predict_proba(X)[:, 1]
+            return (probs >= 0.5).astype(int)
+
+        def predict_proba(self, X):
+            import numpy as _np
+            import pandas as _pd
+            col = self._group_col_idx
+            if col is not None:
+                mask = [i for i in range(X.shape[1]) if i != col]
+                X_fixed = _sm.add_constant(_pd.DataFrame(X[:, mask]))
+            else:
+                X_fixed = _sm.add_constant(_pd.DataFrame(X))
+            raw = self.model_.predict(X_fixed)
+            # Sigmoid to get probabilities
+            p1 = 1 / (1 + _np.exp(-_np.clip(raw, -20, 20)))
+            return _np.column_stack([1 - p1, p1])
+
+    ALGORITHMS["MixedLM"] = {
+        "regressor": MixedLMRegressor,
+        "classifier": MixedLMClassifier,
+        "params": {},  # auto-detects group column
+    }
+except ImportError:
+    pass
+
 # ---------------------------------------------------------------------------
 # Evolution parameters
 # ---------------------------------------------------------------------------

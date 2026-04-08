@@ -144,7 +144,7 @@ def block_switch_timeline(rows, width=55):
         "DecisionTree": "D", "KNeighbors": "K", "SVR": "S",
         "MLP": "M", "Ridge": "r", "Lasso": "l", "ElasticNet": "e",
         "OLS": "O", "Logistic": "g", "SGD": "s", "BayesianRidge": "B",
-        "GAM": "~", "CoxPH": "C",
+        "GAM": "~", "CoxPH": "C", "MERF": "H", "MixedLM": "m",
     }
 
     import re

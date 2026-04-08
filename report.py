@@ -417,6 +417,7 @@ def rebuild_config_from_description(desc_str):
         "ElasticNet", "SVR", "KNeighbors", "DecisionTree", "AdaBoost",
         "XGBoost", "LightGBM", "MLP",
         "OLS", "Logistic", "SGD", "BayesianRidge", "GAM", "CoxPH",
+        "MERF", "MixedLM",
     }
 
     parts = [p.strip() for p in desc_str.split(" -> ") if p.strip()]
