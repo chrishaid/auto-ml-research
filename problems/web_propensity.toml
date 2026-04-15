@@ -83,7 +83,7 @@ connection = "default"
 
 [budget]
 time_budget = 1200
-pipeline_timeout = 30
-n_workers = 1
-max_rows = 50000
-min_evaluations = 2000
+pipeline_timeout = 15
+n_workers = 3
+max_rows = 25000
+min_evaluations = 500

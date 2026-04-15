@@ -244,7 +244,7 @@ def display(runs_data):
         # Show chart for current/most recent run
         if stats['best_by_gen'] and stats['total'] > 5:
             print(f"  │")
-            chart = ascii_chart(stats['best_by_gen'], width=55, height=12, label=name)
+            chart = ascii_chart(stats['best_by_gen'], width=55, height=6, label=name)
             for line in chart.split("\n"):
                 print(f"  │  {line}")
 

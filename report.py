@@ -67,20 +67,42 @@ def load_results():
 
 
 def detect_runs(rows):
-    """Detect multiple runs by generation resets. Returns list of (start_idx, end_idx)."""
-    runs = []
-    run_start = 0
-    prev_gen = -1
+    """Detect multiple runs by clusters of generation-0 rows separated by large gaps.
+
+    Multi-island evolution interleaves results from different islands, causing
+    frequent generation "resets" within a single logical run.  Instead of
+    splitting on every generation decrease, we find clusters of gen-0 rows
+    (the initialisation phase of each run) and use them as run boundaries.
+    """
+    # Find all gen-0 row indices
+    gen0_indices = []
     for i, row in enumerate(rows):
         try:
-            g = int(row["generation"])
+            if int(row["generation"]) == 0:
+                gen0_indices.append(i)
         except (ValueError, KeyError):
             continue
-        if g < prev_gen and i > 0:
-            runs.append((run_start, i))
-            run_start = i
-        prev_gen = g
-    runs.append((run_start, len(rows)))
+
+    if not gen0_indices:
+        return [(0, len(rows))]
+
+    # Cluster gen-0 indices: a gap > MIN_GAP rows means a new run
+    MIN_GAP = 50
+    cluster_starts = [gen0_indices[0]]
+    for j in range(1, len(gen0_indices)):
+        if gen0_indices[j] - gen0_indices[j - 1] > MIN_GAP:
+            cluster_starts.append(gen0_indices[j])
+
+    # Build run boundaries from cluster starts
+    runs = []
+    for k, start in enumerate(cluster_starts):
+        end = cluster_starts[k + 1] if k + 1 < len(cluster_starts) else len(rows)
+        runs.append((start, end))
+
+    # If the first cluster doesn't start at row 0, prepend that range as a run
+    if cluster_starts[0] > 0:
+        runs.insert(0, (0, cluster_starts[0]))
+
     return runs
 
 

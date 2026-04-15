@@ -754,12 +754,17 @@ def fig_mlops_architecture():
 def get_persona_examples(shap_values, X_sample, feature_names, expected_value, problem_name,
                          original_data=None, original_names=None):
     """Find illustrative individuals from SHAP data, with original feature values."""
+    # Ensure shap_values is 2D (some explainers return 3D for multiclass)
+    if shap_values.ndim == 3:
+        shap_values = shap_values[:, :, 1]  # take positive class
+    n_samples = shap_values.shape[0]
     preds = expected_value + shap_values.sum(axis=1)
     short_names = _abbreviate_feature_names(feature_names)
 
     def _build_persona(idx, label, persona_type):
+        idx = int(idx) % n_samples  # safety clamp
         raw_features = {}
-        if original_data is not None and original_names is not None:
+        if original_data is not None and original_names is not None and idx < original_data.shape[0]:
             for i, col in enumerate(original_names):
                 if i < original_data.shape[1]:
                     raw_features[col] = original_data[idx, i]
@@ -1586,6 +1591,9 @@ def _write_model_section(pdf, d):
     # SHAP analysis
     if d["shap_data"] is not None:
         shap_values, X_sample, feature_names_shap, expected_value = d["shap_data"]
+        # Ensure 2D (KernelExplainer with predict_proba returns 3D)
+        if shap_values.ndim == 3:
+            shap_values = shap_values[:, :, 1]
 
         pdf.section_title("SHAP Analysis — How Individual Predictions Work", level=2)
         pdf.body_text(

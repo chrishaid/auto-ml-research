@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoML Report: event-propensity</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #0d1117; color: #c9d1d9; line-height: 1.6; padding: 20px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { color: #58a6ff; border-bottom: 2px solid #30363d; padding-bottom: 12px; margin-bottom: 20px; font-size: 28px; }
+  h2 { color: #79c0ff; margin: 30px 0 15px 0; font-size: 20px; border-bottom: 1px solid #21262d; padding-bottom: 8px; }
+  h3 { color: #d2a8ff; margin: 20px 0 10px 0; font-size: 16px; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .metric-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px; margin-bottom: 20px;
+  }
+  .metric-box {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    padding: 15px; text-align: center;
+  }
+  .metric-box .label { color: #8b949e; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .metric-box .value { color: #58a6ff; font-size: 24px; font-weight: bold; margin-top: 5px; }
+  .metric-box .value.highlight { color: #3fb950; font-size: 28px; }
+  .pipeline-step {
+    display: inline-block; background: #1f2937; border: 1px solid #374151;
+    border-radius: 4px; padding: 4px 10px; margin: 2px; font-family: monospace; font-size: 13px;
+    color: #7dd3fc;
+  }
+  .arrow { color: #6b7280; margin: 0 4px; }
+  table {
+    width: 100%; border-collapse: collapse; margin: 10px 0;
+    font-size: 13px;
+  }
+  th { background: #21262d; color: #79c0ff; padding: 8px 12px; text-align: left; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+  tr:hover td { background: #1c2128; }
+  .bar-container { display: flex; align-items: center; gap: 8px; }
+  .bar { height: 18px; border-radius: 3px; min-width: 2px; }
+  .bar.positive { background: linear-gradient(90deg, #238636, #3fb950); }
+  .bar.negative { background: linear-gradient(90deg, #da3633, #f85149); }
+  .bar.neutral { background: linear-gradient(90deg, #1f6feb, #58a6ff); }
+  svg { width: 100%; height: auto; }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .tag-green { background: #0d2818; color: #3fb950; border: 1px solid #238636; }
+  .tag-blue { background: #0c2d6b; color: #58a6ff; border: 1px solid #1f6feb; }
+  .tag-purple { background: #271052; color: #d2a8ff; border: 1px solid #8957e5; }
+  .tag-yellow { background: #2d2000; color: #d29922; border: 1px solid #9e6a03; }
+  .change-label { font-size: 11px; color: #d2a8ff; margin-left: 8px; }
+  .footer { text-align: center; color: #484f58; margin-top: 40px; padding: 20px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AutoML Evolution Report: event-propensity</h1>
+
+  <!-- Section 1: Summary -->
+  <h2>1. Best Model Summary</h2>
+  <div class="metric-grid">
+    <div class="metric-box">
+      <div class="label">Best auc</div>
+      <div class="value highlight">0.903381</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Generations</div>
+      <div class="value">97</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Evaluations</div>
+      <div class="value">988</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Success Rate</div>
+      <div class="value">94%</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Found at Gen</div>
+      <div class="value">52</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Training Time</div>
+      <div class="value">0.3s</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Winning Pipeline</h3>
+    <p style="margin-top: 10px;">
+      <span class="pipeline-step">MinMaxScaler</span><span class="arrow"> &rarr; </span><span class="pipeline-step">MinMaxScaler</span><span class="arrow"> &rarr; </span><span class="pipeline-step">XGBoost(n_estimators=184, learning_rate=0.028741539961286273, max_depth=4, min_child_weight=1, subsample=0.8894934620009847, colsample_bytree=0.767069938514854, reg_alpha=0.4354177124649407, reg_lambda=0.2516852768161498, verbosity=0)</span>
+    </p>
+  </div>
+
+  <!-- Section 2: Feature Importance -->
+  <h2>2. Variable Importance</h2>
+  <div class="card">
+    <p style="color: #8b949e; margin-bottom: 10px;">Method: built-in</p>
+    <svg viewBox="0 0 900 550" xmlns="http://www.w3.org/2000/svg">
+  <text x="172" y="25.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">TOTAL_EVENT_REGISTERS</text><rect x="180" y="10" width="640.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="826.0" y="25.4" fill="#8b949e" font-size="11">0.2641</text><text x="172" y="51.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">ACTIVE_MONTHS</text><rect x="180" y="36" width="252.1" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="438.140380859375" y="51.4" fill="#8b949e" font-size="11">0.1041</text><text x="172" y="77.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">TOTAL_EVENT_ATTENDS</text><rect x="180" y="62" width="217.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="402.973876953125" y="77.4" fill="#8b949e" font-size="11">0.0895</text><text x="172" y="103.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">TOTAL_EDU_REGISTERS</text><rect x="180" y="88" width="181.5" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="367.49395751953125" y="103.4" fill="#8b949e" font-size="11">0.0749</text><text x="172" y="129.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">NEW_BRAND_ENGAGEMENTS</text><rect x="180" y="114" width="172.7" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="358.70330810546875" y="129.4" fill="#8b949e" font-size="11">0.0713</text><text x="172" y="155.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">TOTAL_SURVEY_RESPONSES</text><rect x="180" y="140" width="163.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="349.0365295410156" y="155.4" fill="#8b949e" font-size="11">0.0673</text><text x="172" y="181.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">TOTAL_EDU_COMPLETES</text><rect x="180" y="166" width="132.7" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="318.6750793457031" y="181.4" fill="#8b949e" font-size="11">0.0548</text><text x="172" y="207.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">MONTHS_SINCE_LAST_EVENT</text><rect x="180" y="192" width="119.5" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="305.53314208984375" y="207.4" fill="#8b949e" font-size="11">0.0493</text><text x="172" y="233.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">EMAIL_EVENTS_12M</text><rect x="180" y="218" width="59.7" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="245.66943359375" y="233.4" fill="#8b949e" font-size="11">0.0246</text><text x="172" y="259.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">EARLY_6M_EVENTS</text><rect x="180" y="244" width="56.5" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="242.47425842285156" y="259.4" fill="#8b949e" font-size="11">0.0233</text><text x="172" y="285.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">RECENT_3M_EVENTS</text><rect x="180" y="270" width="55.3" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="241.34197998046875" y="285.4" fill="#8b949e" font-size="11">0.0228</text><text x="172" y="311.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">SPECIALTY_PRIMARY_GROUP</text><rect x="180" y="296" width="46.2" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="232.24600219726562" y="311.4" fill="#8b949e" font-size="11">0.0191</text><text x="172" y="337.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">GENDER</text><rect x="180" y="322" width="44.8" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="230.83877563476562" y="337.4" fill="#8b949e" font-size="11">0.0185</text><text x="172" y="363.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">BRANDS_ENGAGED</text><rect x="180" y="348" width="40.8" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="226.77944946289062" y="363.4" fill="#8b949e" font-size="11">0.0168</text><text x="172" y="389.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">IS_EXECUTIVE</text><rect x="180" y="374" width="37.3" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="223.26943969726562" y="389.4" fill="#8b949e" font-size="11">0.0154</text><text x="172" y="415.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">GRADUATION_YEAR</text><rect x="180" y="400" width="33.3" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="219.34475708007812" y="415.4" fill="#8b949e" font-size="11">0.0138</text><text x="172" y="441.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">MID_3M_EVENTS</text><rect x="180" y="426" width="32.1" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="218.11265563964844" y="441.4" fill="#8b949e" font-size="11">0.0133</text><text x="172" y="467.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">IS_HOSPITALIST</text><rect x="180" y="452" width="30.8" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="216.83717346191406" y="467.4" fill="#8b949e" font-size="11">0.0127</text><text x="172" y="493.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">AD_EVENTS_12M</text><rect x="180" y="478" width="26.8" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="212.83740234375" y="493.4" fill="#8b949e" font-size="11">0.0111</text><text x="172" y="519.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">IS_KEY_OPINION_LEADER</text><rect x="180" y="504" width="22.6" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="208.62718200683594" y="519.4" fill="#8b949e" font-size="11">0.0093</text>
+</svg>
+  </div>
+
+  <!-- Section 3: Feature Interactions -->
+  <h2>3. Feature Interactions</h2>
+  <div class="card">
+    <table>
+<thead><tr>
+  <th>#</th><th>Feature A</th><th>Feature B</th><th>Pair auc</th>
+  <th>A alone</th><th>B alone</th><th>Interaction</th>
+</tr></thead>
+<tbody><tr>
+  <td>1</td>
+  <td><b>TOTAL_SURVEY_RESPONSES</b></td>
+  <td><b>TOTAL_EDU_COMPLETES</b></td>
+  <td>0.7898</td>
+  <td>0.6339</td>
+  <td>0.6460</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 200px;"></div>
+      <span style="color: #3fb950;">+0.1438</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>2</td>
+  <td><b>TOTAL_EDU_REGISTERS</b></td>
+  <td><b>TOTAL_SURVEY_RESPONSES</b></td>
+  <td>0.7925</td>
+  <td>0.6667</td>
+  <td>0.6339</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 175px;"></div>
+      <span style="color: #3fb950;">+0.1258</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>3</td>
+  <td><b>NEW_BRAND_ENGAGEMENTS</b></td>
+  <td><b>TOTAL_EDU_COMPLETES</b></td>
+  <td>0.7937</td>
+  <td>0.6806</td>
+  <td>0.6460</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 157px;"></div>
+      <span style="color: #3fb950;">+0.1131</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>4</td>
+  <td><b>TOTAL_EDU_REGISTERS</b></td>
+  <td><b>NEW_BRAND_ENGAGEMENTS</b></td>
+  <td>0.7916</td>
+  <td>0.6667</td>
+  <td>0.6806</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 154px;"></div>
+      <span style="color: #3fb950;">+0.1111</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>5</td>
+  <td><b>TOTAL_EDU_REGISTERS</b></td>
+  <td><b>EMAIL_EVENTS_12M</b></td>
+  <td>0.7790</td>
+  <td>0.6667</td>
+  <td>0.6767</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 142px;"></div>
+      <span style="color: #3fb950;">+0.1023</span>
+    </div>
+  </td>
+</tr></tbody>
+</table>
+  </div>
+
+  <!-- Section 4a: Pipeline Evolution -->
+  <h2>4a. Best Pipeline Evolution</h2>
+  <div class="card">
+    <table>
+<thead><tr>
+  <th>Gen</th><th>Preparation</th><th>Preprocessing</th><th>Feature Sel.</th><th>Algorithm</th><th>auc</th><th>Changed</th>
+</tr></thead>
+<tbody><tr>
+  <td style="font-weight: bold;">0</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">ExtraTrees</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.874587</td>
+  <td></td>
+</tr><tr>
+  <td style="font-weight: bold;">0</td>
+  <td><span class="pipeline-step">Winsorizer</span></td>
+  <td><span class="pipeline-step">RobustScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.897456</td>
+  <td><span class="tag tag-blue">prep</span> <span class="tag tag-blue">preproc</span> <span class="tag tag-yellow">algorithm</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">1</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer+SimpleImputer_median</span></td>
+  <td><span class="pipeline-step">RobustScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.898853</td>
+  <td><span class="tag tag-blue">prep</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">5</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.901295</td>
+  <td><span class="tag tag-blue">prep</span> <span class="tag tag-blue">preproc</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">9</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer+SimpleImputer_mean</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.901355</td>
+  <td><span class="tag tag-blue">prep</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">10</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer+SimpleImputer_median</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.901610</td>
+  <td><span class="tag tag-blue">prep</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">10</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.902040</td>
+  <td><span class="tag tag-blue">prep</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">13</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.902042</td>
+  <td><span class="tag tag-green">params</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">15</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer+SimpleImputer_mean</span></td>
+  <td><span class="pipeline-step">MinMaxScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.902393</td>
+  <td><span class="tag tag-blue">prep</span> <span class="tag tag-blue">preproc</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">18</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step">MinMaxScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.902633</td>
+  <td><span class="tag tag-blue">prep</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">35</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step">MinMaxScaler+MinMaxScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.902739</td>
+  <td><span class="tag tag-blue">preproc</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">42</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step">MinMaxScaler+MinMaxScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.902746</td>
+  <td><span class="tag tag-green">params</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">47</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step">MinMaxScaler+MinMaxScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.902851</td>
+  <td><span class="tag tag-green">params</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">49</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step">MinMaxScaler+MinMaxScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.903150</td>
+  <td><span class="tag tag-green">params</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">52</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step">MinMaxScaler+MinMaxScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.903381</td>
+  <td><span class="tag tag-green">params</span> </td>
+</tr></tbody>
+</table>
+  </div>
+
+  <!-- Section 4b: Score Progression -->
+  <h2>4b. Score Progression</h2>
+  <div class="card">
+    <svg viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="280" fill="#0d1117" rx="6"/>
+  <text x="62" y="244.0" text-anchor="end" fill="#8b949e" font-size="11">0.8975</text><line x1="70" y1="240.0" x2="880" y2="240.0" stroke="#21262d" stroke-width="1"/><text x="62" y="200.0" text-anchor="end" fill="#8b949e" font-size="11">0.8986</text><line x1="70" y1="196.0" x2="880" y2="196.0" stroke="#21262d" stroke-width="1"/><text x="62" y="156.0" text-anchor="end" fill="#8b949e" font-size="11">0.8998</text><line x1="70" y1="152.0" x2="880" y2="152.0" stroke="#21262d" stroke-width="1"/><text x="62" y="112.0" text-anchor="end" fill="#8b949e" font-size="11">0.9010</text><line x1="70" y1="108.0" x2="880" y2="108.0" stroke="#21262d" stroke-width="1"/><text x="62" y="68.0" text-anchor="end" fill="#8b949e" font-size="11">0.9022</text><line x1="70" y1="64.0" x2="880" y2="64.0" stroke="#21262d" stroke-width="1"/><text x="62" y="24.0" text-anchor="end" fill="#8b949e" font-size="11">0.9034</text><line x1="70" y1="20.0" x2="880" y2="20.0" stroke="#21262d" stroke-width="1"/>
+  <text x="70.0" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 0</text><text x="170.20618556701032" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 12</text><text x="270.41237113402065" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 24</text><text x="370.6185567010309" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 36</text><text x="470.82474226804123" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 48</text><text x="571.0309278350516" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 60</text><text x="671.2371134020618" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 72</text><text x="771.4432989690722" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 84</text><text x="871.6494845360825" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 96</text>
+  <path d="M 70.0,240.0 L 78.4,188.1 L 86.7,188.1 L 95.1,188.1 L 103.4,188.1 L 111.8,97.5 L 120.1,97.5 L 128.5,97.5 L 136.8,97.5 L 145.2,95.2 L 153.5,69.8 L 161.9,69.8 L 170.2,69.8 L 178.6,69.7 L 186.9,69.7 L 195.3,56.7 L 203.6,56.7 L 212.0,56.7 L 220.3,47.8 L 228.7,47.8 L 237.0,47.8 L 245.4,47.8 L 253.7,47.8 L 262.1,47.8 L 270.4,47.8 L 278.8,47.8 L 287.1,47.8 L 295.5,47.8 L 303.8,47.8 L 312.2,47.8 L 320.5,47.8 L 328.9,47.8 L 337.2,47.8 L 345.6,47.8 L 353.9,47.8 L 362.3,43.8 L 370.6,43.8 L 379.0,43.8 L 387.3,43.8 L 395.7,43.8 L 404.0,43.8 L 412.4,43.8 L 420.7,43.6 L 429.1,43.6 L 437.4,43.6 L 445.8,43.6 L 454.1,43.6 L 462.5,39.7 L 470.8,39.7 L 479.2,28.6 L 487.5,28.6 L 495.9,28.6 L 504.2,20.0 L 512.6,20.0 L 520.9,20.0 L 529.3,20.0 L 537.6,20.0 L 546.0,20.0 L 554.3,20.0 L 562.7,20.0 L 571.0,20.0 L 579.4,20.0 L 587.7,20.0 L 596.1,20.0 L 604.4,20.0 L 612.8,20.0 L 621.1,20.0 L 629.5,20.0 L 637.8,20.0 L 646.2,20.0 L 654.5,20.0 L 662.9,20.0 L 671.2,20.0 L 679.6,20.0 L 687.9,20.0 L 696.3,20.0 L 704.6,20.0 L 713.0,20.0 L 721.3,20.0 L 729.7,20.0 L 738.0,20.0 L 746.4,20.0 L 754.7,20.0 L 763.1,20.0 L 771.4,20.0 L 779.8,20.0 L 788.1,20.0 L 796.5,20.0 L 804.8,20.0 L 813.2,20.0 L 821.5,20.0 L 829.9,20.0 L 838.2,20.0 L 846.6,20.0 L 854.9,20.0 L 863.3,20.0 L 871.6,20.0 L 880.0,20.0 L 880.0,240.0 L 70.0,240.0 Z" fill="url(#scoreGrad)" opacity="0.3"/>
+  <path d="M 70.0,240.0 L 78.4,188.1 L 86.7,188.1 L 95.1,188.1 L 103.4,188.1 L 111.8,97.5 L 120.1,97.5 L 128.5,97.5 L 136.8,97.5 L 145.2,95.2 L 153.5,69.8 L 161.9,69.8 L 170.2,69.8 L 178.6,69.7 L 186.9,69.7 L 195.3,56.7 L 203.6,56.7 L 212.0,56.7 L 220.3,47.8 L 228.7,47.8 L 237.0,47.8 L 245.4,47.8 L 253.7,47.8 L 262.1,47.8 L 270.4,47.8 L 278.8,47.8 L 287.1,47.8 L 295.5,47.8 L 303.8,47.8 L 312.2,47.8 L 320.5,47.8 L 328.9,47.8 L 337.2,47.8 L 345.6,47.8 L 353.9,47.8 L 362.3,43.8 L 370.6,43.8 L 379.0,43.8 L 387.3,43.8 L 395.7,43.8 L 404.0,43.8 L 412.4,43.8 L 420.7,43.6 L 429.1,43.6 L 437.4,43.6 L 445.8,43.6 L 454.1,43.6 L 462.5,39.7 L 470.8,39.7 L 479.2,28.6 L 487.5,28.6 L 495.9,28.6 L 504.2,20.0 L 512.6,20.0 L 520.9,20.0 L 529.3,20.0 L 537.6,20.0 L 546.0,20.0 L 554.3,20.0 L 562.7,20.0 L 571.0,20.0 L 579.4,20.0 L 587.7,20.0 L 596.1,20.0 L 604.4,20.0 L 612.8,20.0 L 621.1,20.0 L 629.5,20.0 L 637.8,20.0 L 646.2,20.0 L 654.5,20.0 L 662.9,20.0 L 671.2,20.0 L 679.6,20.0 L 687.9,20.0 L 696.3,20.0 L 704.6,20.0 L 713.0,20.0 L 721.3,20.0 L 729.7,20.0 L 738.0,20.0 L 746.4,20.0 L 754.7,20.0 L 763.1,20.0 L 771.4,20.0 L 779.8,20.0 L 788.1,20.0 L 796.5,20.0 L 804.8,20.0 L 813.2,20.0 L 821.5,20.0 L 829.9,20.0 L 838.2,20.0 L 846.6,20.0 L 854.9,20.0 L 863.3,20.0 L 871.6,20.0 L 880.0,20.0" fill="none" stroke="#3fb950" stroke-width="2"/>
+  <defs>
+    <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0.0"/>
+    </linearGradient>
+  </defs>
+  <text x="450.0" y="16" text-anchor="middle" fill="#79c0ff" font-size="13" font-weight="bold">Best auc over generations</text>
+</svg>
+  </div>
+
+  <!-- Section 4c: Algorithm Diversity -->
+  <h2>4c. Algorithm Diversity Over Time</h2>
+  <div class="card">
+    <svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="300" fill="#0d1117" rx="6"/>
+  <text x="42" y="264.0" text-anchor="end" fill="#8b949e" font-size="11">0%</text><line x1="50" y1="260.0" x2="750" y2="260.0" stroke="#21262d" stroke-width="1"/><text x="42" y="204.0" text-anchor="end" fill="#8b949e" font-size="11">25%</text><line x1="50" y1="200.0" x2="750" y2="200.0" stroke="#21262d" stroke-width="1"/><text x="42" y="144.0" text-anchor="end" fill="#8b949e" font-size="11">50%</text><line x1="50" y1="140.0" x2="750" y2="140.0" stroke="#21262d" stroke-width="1"/><text x="42" y="84.0" text-anchor="end" fill="#8b949e" font-size="11">75%</text><line x1="50" y1="80.0" x2="750" y2="80.0" stroke="#21262d" stroke-width="1"/><text x="42" y="24.0" text-anchor="end" fill="#8b949e" font-size="11">100%</text><line x1="50" y1="20.0" x2="750" y2="20.0" stroke="#21262d" stroke-width="1"/>
+  <path d="M 50.0,233.3 L 57.2,260.0 L 64.4,260.0 L 71.6,260.0 L 78.9,260.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,260.0 L 165.5,260.0 L 172.7,260.0 L 179.9,260.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,260.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,260.0 L 244.8,260.0 L 252.1,260.0 L 259.3,236.0 L 266.5,260.0 L 273.7,260.0 L 280.9,236.0 L 288.1,260.0 L 295.4,260.0 L 302.6,260.0 L 309.8,260.0 L 317.0,260.0 L 324.2,260.0 L 331.4,260.0 L 338.7,260.0 L 345.9,260.0 L 353.1,260.0 L 360.3,236.0 L 367.5,260.0 L 374.7,236.0 L 382.0,260.0 L 389.2,260.0 L 396.4,260.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,260.0 L 432.5,260.0 L 439.7,260.0 L 446.9,260.0 L 454.1,260.0 L 461.3,260.0 L 468.6,260.0 L 475.8,260.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,260.0 L 540.7,260.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,260.0 L 576.8,260.0 L 584.0,260.0 L 591.2,260.0 L 598.5,260.0 L 605.7,260.0 L 612.9,260.0 L 620.1,260.0 L 627.3,260.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,260.0 L 670.6,260.0 L 677.8,260.0 L 685.1,236.0 L 692.3,260.0 L 699.5,260.0 L 706.7,260.0 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,260.0 L 742.8,260.0 L 750.0,260.0 L 750.0,260.0 L 742.8,260.0 L 735.6,260.0 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,260.0 L 699.5,260.0 L 692.3,260.0 L 685.1,260.0 L 677.8,260.0 L 670.6,260.0 L 663.4,260.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,260.0 L 620.1,260.0 L 612.9,260.0 L 605.7,260.0 L 598.5,260.0 L 591.2,260.0 L 584.0,260.0 L 576.8,260.0 L 569.6,260.0 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,260.0 L 533.5,260.0 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,260.0 L 461.3,260.0 L 454.1,260.0 L 446.9,260.0 L 439.7,260.0 L 432.5,260.0 L 425.3,260.0 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,260.0 L 374.7,260.0 L 367.5,260.0 L 360.3,260.0 L 353.1,260.0 L 345.9,260.0 L 338.7,260.0 L 331.4,260.0 L 324.2,260.0 L 317.0,260.0 L 309.8,260.0 L 302.6,260.0 L 295.4,260.0 L 288.1,260.0 L 280.9,260.0 L 273.7,260.0 L 266.5,260.0 L 259.3,260.0 L 252.1,260.0 L 244.8,260.0 L 237.6,260.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,260.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,260.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,260.0 L 71.6,260.0 L 64.4,260.0 L 57.2,260.0 L 50.0,260.0 Z" fill="#3fb950" opacity="0.7"/><path d="M 50.0,180.0 L 57.2,260.0 L 64.4,260.0 L 71.6,260.0 L 78.9,260.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,260.0 L 165.5,260.0 L 172.7,260.0 L 179.9,260.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,260.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,260.0 L 244.8,260.0 L 252.1,260.0 L 259.3,236.0 L 266.5,260.0 L 273.7,260.0 L 280.9,212.0 L 288.1,260.0 L 295.4,260.0 L 302.6,260.0 L 309.8,260.0 L 317.0,260.0 L 324.2,260.0 L 331.4,260.0 L 338.7,260.0 L 345.9,236.0 L 353.1,260.0 L 360.3,236.0 L 367.5,260.0 L 374.7,236.0 L 382.0,260.0 L 389.2,260.0 L 396.4,260.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,260.0 L 432.5,260.0 L 439.7,260.0 L 446.9,260.0 L 454.1,260.0 L 461.3,260.0 L 468.6,260.0 L 475.8,260.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,260.0 L 540.7,260.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,260.0 L 576.8,225.7 L 584.0,260.0 L 591.2,260.0 L 598.5,260.0 L 605.7,260.0 L 612.9,260.0 L 620.1,260.0 L 627.3,236.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,260.0 L 670.6,260.0 L 677.8,260.0 L 685.1,212.0 L 692.3,260.0 L 699.5,260.0 L 706.7,260.0 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,260.0 L 742.8,260.0 L 750.0,260.0 L 750.0,260.0 L 742.8,260.0 L 735.6,260.0 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,260.0 L 699.5,260.0 L 692.3,260.0 L 685.1,236.0 L 677.8,260.0 L 670.6,260.0 L 663.4,260.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,260.0 L 620.1,260.0 L 612.9,260.0 L 605.7,260.0 L 598.5,260.0 L 591.2,260.0 L 584.0,260.0 L 576.8,260.0 L 569.6,260.0 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,260.0 L 533.5,260.0 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,260.0 L 461.3,260.0 L 454.1,260.0 L 446.9,260.0 L 439.7,260.0 L 432.5,260.0 L 425.3,260.0 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,260.0 L 374.7,236.0 L 367.5,260.0 L 360.3,236.0 L 353.1,260.0 L 345.9,260.0 L 338.7,260.0 L 331.4,260.0 L 324.2,260.0 L 317.0,260.0 L 309.8,260.0 L 302.6,260.0 L 295.4,260.0 L 288.1,260.0 L 280.9,236.0 L 273.7,260.0 L 266.5,260.0 L 259.3,236.0 L 252.1,260.0 L 244.8,260.0 L 237.6,260.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,260.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,260.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,260.0 L 71.6,260.0 L 64.4,260.0 L 57.2,260.0 L 50.0,233.3 Z" fill="#58a6ff" opacity="0.7"/><path d="M 50.0,100.0 L 57.2,92.0 L 64.4,157.1 L 71.6,206.7 L 78.9,260.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,260.0 L 165.5,260.0 L 172.7,260.0 L 179.9,260.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,260.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,236.0 L 244.8,260.0 L 252.1,260.0 L 259.3,236.0 L 266.5,260.0 L 273.7,260.0 L 280.9,212.0 L 288.1,260.0 L 295.4,260.0 L 302.6,260.0 L 309.8,260.0 L 317.0,260.0 L 324.2,260.0 L 331.4,260.0 L 338.7,260.0 L 345.9,212.0 L 353.1,260.0 L 360.3,236.0 L 367.5,260.0 L 374.7,236.0 L 382.0,260.0 L 389.2,260.0 L 396.4,260.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,260.0 L 432.5,260.0 L 439.7,260.0 L 446.9,260.0 L 454.1,260.0 L 461.3,260.0 L 468.6,260.0 L 475.8,260.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,225.7 L 540.7,260.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,260.0 L 576.8,225.7 L 584.0,260.0 L 591.2,236.0 L 598.5,260.0 L 605.7,260.0 L 612.9,260.0 L 620.1,260.0 L 627.3,236.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,260.0 L 670.6,260.0 L 677.8,260.0 L 685.1,212.0 L 692.3,260.0 L 699.5,260.0 L 706.7,260.0 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,260.0 L 742.8,260.0 L 750.0,260.0 L 750.0,260.0 L 742.8,260.0 L 735.6,260.0 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,260.0 L 699.5,260.0 L 692.3,260.0 L 685.1,212.0 L 677.8,260.0 L 670.6,260.0 L 663.4,260.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,236.0 L 620.1,260.0 L 612.9,260.0 L 605.7,260.0 L 598.5,260.0 L 591.2,260.0 L 584.0,260.0 L 576.8,225.7 L 569.6,260.0 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,260.0 L 533.5,260.0 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,260.0 L 461.3,260.0 L 454.1,260.0 L 446.9,260.0 L 439.7,260.0 L 432.5,260.0 L 425.3,260.0 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,260.0 L 374.7,236.0 L 367.5,260.0 L 360.3,236.0 L 353.1,260.0 L 345.9,236.0 L 338.7,260.0 L 331.4,260.0 L 324.2,260.0 L 317.0,260.0 L 309.8,260.0 L 302.6,260.0 L 295.4,260.0 L 288.1,260.0 L 280.9,212.0 L 273.7,260.0 L 266.5,260.0 L 259.3,236.0 L 252.1,260.0 L 244.8,260.0 L 237.6,260.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,260.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,260.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,260.0 L 71.6,260.0 L 64.4,260.0 L 57.2,260.0 L 50.0,180.0 Z" fill="#d2a8ff" opacity="0.7"/><path d="M 50.0,73.3 L 57.2,92.0 L 64.4,157.1 L 71.6,206.7 L 78.9,236.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,260.0 L 165.5,260.0 L 172.7,260.0 L 179.9,260.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,260.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,236.0 L 244.8,236.0 L 252.1,260.0 L 259.3,236.0 L 266.5,260.0 L 273.7,260.0 L 280.9,212.0 L 288.1,260.0 L 295.4,260.0 L 302.6,260.0 L 309.8,260.0 L 317.0,260.0 L 324.2,260.0 L 331.4,260.0 L 338.7,260.0 L 345.9,212.0 L 353.1,260.0 L 360.3,236.0 L 367.5,260.0 L 374.7,236.0 L 382.0,260.0 L 389.2,260.0 L 396.4,260.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,233.3 L 432.5,260.0 L 439.7,260.0 L 446.9,260.0 L 454.1,260.0 L 461.3,233.3 L 468.6,260.0 L 475.8,260.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,225.7 L 540.7,260.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,260.0 L 576.8,225.7 L 584.0,260.0 L 591.2,236.0 L 598.5,260.0 L 605.7,260.0 L 612.9,260.0 L 620.1,230.0 L 627.3,212.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,260.0 L 670.6,233.3 L 677.8,260.0 L 685.1,212.0 L 692.3,260.0 L 699.5,260.0 L 706.7,260.0 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,260.0 L 742.8,260.0 L 750.0,260.0 L 750.0,260.0 L 742.8,260.0 L 735.6,260.0 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,260.0 L 699.5,260.0 L 692.3,260.0 L 685.1,212.0 L 677.8,260.0 L 670.6,260.0 L 663.4,260.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,236.0 L 620.1,260.0 L 612.9,260.0 L 605.7,260.0 L 598.5,260.0 L 591.2,236.0 L 584.0,260.0 L 576.8,225.7 L 569.6,260.0 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,260.0 L 533.5,225.7 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,260.0 L 461.3,260.0 L 454.1,260.0 L 446.9,260.0 L 439.7,260.0 L 432.5,260.0 L 425.3,260.0 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,260.0 L 374.7,236.0 L 367.5,260.0 L 360.3,236.0 L 353.1,260.0 L 345.9,212.0 L 338.7,260.0 L 331.4,260.0 L 324.2,260.0 L 317.0,260.0 L 309.8,260.0 L 302.6,260.0 L 295.4,260.0 L 288.1,260.0 L 280.9,212.0 L 273.7,260.0 L 266.5,260.0 L 259.3,236.0 L 252.1,260.0 L 244.8,260.0 L 237.6,236.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,260.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,260.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,260.0 L 71.6,206.7 L 64.4,157.1 L 57.2,92.0 L 50.0,100.0 Z" fill="#f0883e" opacity="0.7"/><path d="M 50.0,46.7 L 57.2,92.0 L 64.4,157.1 L 71.6,206.7 L 78.9,236.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,260.0 L 165.5,260.0 L 172.7,260.0 L 179.9,260.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,260.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,236.0 L 244.8,236.0 L 252.1,260.0 L 259.3,236.0 L 266.5,260.0 L 273.7,260.0 L 280.9,212.0 L 288.1,260.0 L 295.4,260.0 L 302.6,260.0 L 309.8,260.0 L 317.0,260.0 L 324.2,260.0 L 331.4,260.0 L 338.7,260.0 L 345.9,188.0 L 353.1,260.0 L 360.3,236.0 L 367.5,260.0 L 374.7,236.0 L 382.0,260.0 L 389.2,260.0 L 396.4,260.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,233.3 L 432.5,260.0 L 439.7,260.0 L 446.9,260.0 L 454.1,260.0 L 461.3,233.3 L 468.6,260.0 L 475.8,260.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,225.7 L 540.7,236.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,233.3 L 576.8,225.7 L 584.0,260.0 L 591.2,212.0 L 598.5,260.0 L 605.7,260.0 L 612.9,260.0 L 620.1,230.0 L 627.3,212.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,260.0 L 670.6,233.3 L 677.8,260.0 L 685.1,212.0 L 692.3,260.0 L 699.5,260.0 L 706.7,260.0 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,233.3 L 742.8,260.0 L 750.0,230.0 L 750.0,260.0 L 742.8,260.0 L 735.6,260.0 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,260.0 L 699.5,260.0 L 692.3,260.0 L 685.1,212.0 L 677.8,260.0 L 670.6,233.3 L 663.4,260.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,212.0 L 620.1,230.0 L 612.9,260.0 L 605.7,260.0 L 598.5,260.0 L 591.2,236.0 L 584.0,260.0 L 576.8,225.7 L 569.6,260.0 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,260.0 L 533.5,225.7 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,260.0 L 461.3,233.3 L 454.1,260.0 L 446.9,260.0 L 439.7,260.0 L 432.5,260.0 L 425.3,233.3 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,260.0 L 374.7,236.0 L 367.5,260.0 L 360.3,236.0 L 353.1,260.0 L 345.9,212.0 L 338.7,260.0 L 331.4,260.0 L 324.2,260.0 L 317.0,260.0 L 309.8,260.0 L 302.6,260.0 L 295.4,260.0 L 288.1,260.0 L 280.9,212.0 L 273.7,260.0 L 266.5,260.0 L 259.3,236.0 L 252.1,260.0 L 244.8,236.0 L 237.6,236.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,260.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,260.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,236.0 L 71.6,206.7 L 64.4,157.1 L 57.2,92.0 L 50.0,73.3 Z" fill="#da3633" opacity="0.7"/><path d="M 50.0,46.7 L 57.2,92.0 L 64.4,157.1 L 71.6,206.7 L 78.9,236.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,236.0 L 165.5,260.0 L 172.7,260.0 L 179.9,260.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,236.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,236.0 L 244.8,236.0 L 252.1,260.0 L 259.3,236.0 L 266.5,236.0 L 273.7,260.0 L 280.9,212.0 L 288.1,260.0 L 295.4,236.0 L 302.6,260.0 L 309.8,260.0 L 317.0,236.0 L 324.2,260.0 L 331.4,260.0 L 338.7,233.3 L 345.9,188.0 L 353.1,260.0 L 360.3,212.0 L 367.5,260.0 L 374.7,236.0 L 382.0,260.0 L 389.2,260.0 L 396.4,260.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,233.3 L 432.5,260.0 L 439.7,260.0 L 446.9,260.0 L 454.1,260.0 L 461.3,233.3 L 468.6,230.0 L 475.8,260.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,225.7 L 540.7,236.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,206.7 L 576.8,225.7 L 584.0,236.0 L 591.2,212.0 L 598.5,236.0 L 605.7,260.0 L 612.9,260.0 L 620.1,230.0 L 627.3,212.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,236.0 L 670.6,206.7 L 677.8,260.0 L 685.1,212.0 L 692.3,260.0 L 699.5,260.0 L 706.7,260.0 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,233.3 L 742.8,260.0 L 750.0,200.0 L 750.0,230.0 L 742.8,260.0 L 735.6,233.3 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,260.0 L 699.5,260.0 L 692.3,260.0 L 685.1,212.0 L 677.8,260.0 L 670.6,233.3 L 663.4,260.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,212.0 L 620.1,230.0 L 612.9,260.0 L 605.7,260.0 L 598.5,260.0 L 591.2,212.0 L 584.0,260.0 L 576.8,225.7 L 569.6,233.3 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,236.0 L 533.5,225.7 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,260.0 L 461.3,233.3 L 454.1,260.0 L 446.9,260.0 L 439.7,260.0 L 432.5,260.0 L 425.3,233.3 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,260.0 L 374.7,236.0 L 367.5,260.0 L 360.3,236.0 L 353.1,260.0 L 345.9,188.0 L 338.7,260.0 L 331.4,260.0 L 324.2,260.0 L 317.0,260.0 L 309.8,260.0 L 302.6,260.0 L 295.4,260.0 L 288.1,260.0 L 280.9,212.0 L 273.7,260.0 L 266.5,260.0 L 259.3,236.0 L 252.1,260.0 L 244.8,236.0 L 237.6,236.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,260.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,260.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,236.0 L 71.6,206.7 L 64.4,157.1 L 57.2,92.0 L 50.0,46.7 Z" fill="#d29922" opacity="0.7"/><path d="M 50.0,46.7 L 57.2,92.0 L 64.4,157.1 L 71.6,206.7 L 78.9,236.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,236.0 L 165.5,260.0 L 172.7,260.0 L 179.9,260.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,236.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,212.0 L 244.8,236.0 L 252.1,260.0 L 259.3,236.0 L 266.5,236.0 L 273.7,260.0 L 280.9,212.0 L 288.1,260.0 L 295.4,236.0 L 302.6,260.0 L 309.8,260.0 L 317.0,236.0 L 324.2,260.0 L 331.4,260.0 L 338.7,233.3 L 345.9,188.0 L 353.1,260.0 L 360.3,212.0 L 367.5,260.0 L 374.7,236.0 L 382.0,233.3 L 389.2,260.0 L 396.4,260.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,233.3 L 432.5,260.0 L 439.7,233.3 L 446.9,260.0 L 454.1,260.0 L 461.3,233.3 L 468.6,230.0 L 475.8,260.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,225.7 L 540.7,236.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,206.7 L 576.8,225.7 L 584.0,236.0 L 591.2,212.0 L 598.5,236.0 L 605.7,260.0 L 612.9,233.3 L 620.1,230.0 L 627.3,212.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,212.0 L 670.6,206.7 L 677.8,260.0 L 685.1,212.0 L 692.3,260.0 L 699.5,260.0 L 706.7,233.3 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,233.3 L 742.8,260.0 L 750.0,200.0 L 750.0,200.0 L 742.8,260.0 L 735.6,233.3 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,260.0 L 699.5,260.0 L 692.3,260.0 L 685.1,212.0 L 677.8,260.0 L 670.6,206.7 L 663.4,236.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,212.0 L 620.1,230.0 L 612.9,260.0 L 605.7,260.0 L 598.5,236.0 L 591.2,212.0 L 584.0,236.0 L 576.8,225.7 L 569.6,206.7 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,236.0 L 533.5,225.7 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,230.0 L 461.3,233.3 L 454.1,260.0 L 446.9,260.0 L 439.7,260.0 L 432.5,260.0 L 425.3,233.3 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,260.0 L 374.7,236.0 L 367.5,260.0 L 360.3,212.0 L 353.1,260.0 L 345.9,188.0 L 338.7,233.3 L 331.4,260.0 L 324.2,260.0 L 317.0,236.0 L 309.8,260.0 L 302.6,260.0 L 295.4,236.0 L 288.1,260.0 L 280.9,212.0 L 273.7,260.0 L 266.5,236.0 L 259.3,236.0 L 252.1,260.0 L 244.8,236.0 L 237.6,236.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,236.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,236.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,236.0 L 71.6,206.7 L 64.4,157.1 L 57.2,92.0 L 50.0,46.7 Z" fill="#3fb5e5" opacity="0.7"/><path d="M 50.0,46.7 L 57.2,92.0 L 64.4,157.1 L 71.6,206.7 L 78.9,236.0 L 86.1,260.0 L 93.3,260.0 L 100.5,260.0 L 107.7,260.0 L 114.9,260.0 L 122.2,260.0 L 129.4,260.0 L 136.6,260.0 L 143.8,260.0 L 151.0,260.0 L 158.2,236.0 L 165.5,260.0 L 172.7,260.0 L 179.9,236.0 L 187.1,260.0 L 194.3,260.0 L 201.5,260.0 L 208.8,236.0 L 216.0,260.0 L 223.2,260.0 L 230.4,260.0 L 237.6,212.0 L 244.8,236.0 L 252.1,260.0 L 259.3,236.0 L 266.5,236.0 L 273.7,260.0 L 280.9,212.0 L 288.1,260.0 L 295.4,236.0 L 302.6,260.0 L 309.8,260.0 L 317.0,236.0 L 324.2,260.0 L 331.4,260.0 L 338.7,233.3 L 345.9,188.0 L 353.1,260.0 L 360.3,212.0 L 367.5,260.0 L 374.7,236.0 L 382.0,233.3 L 389.2,260.0 L 396.4,236.0 L 403.6,260.0 L 410.8,260.0 L 418.0,260.0 L 425.3,233.3 L 432.5,260.0 L 439.7,233.3 L 446.9,260.0 L 454.1,260.0 L 461.3,233.3 L 468.6,230.0 L 475.8,236.0 L 483.0,260.0 L 490.2,260.0 L 497.4,260.0 L 504.6,260.0 L 511.9,260.0 L 519.1,260.0 L 526.3,260.0 L 533.5,225.7 L 540.7,212.0 L 547.9,260.0 L 555.2,260.0 L 562.4,260.0 L 569.6,206.7 L 576.8,225.7 L 584.0,236.0 L 591.2,188.0 L 598.5,212.0 L 605.7,260.0 L 612.9,233.3 L 620.1,230.0 L 627.3,212.0 L 634.5,260.0 L 641.8,260.0 L 649.0,260.0 L 656.2,260.0 L 663.4,212.0 L 670.6,206.7 L 677.8,260.0 L 685.1,212.0 L 692.3,260.0 L 699.5,260.0 L 706.7,233.3 L 713.9,260.0 L 721.1,260.0 L 728.4,260.0 L 735.6,233.3 L 742.8,260.0 L 750.0,200.0 L 750.0,200.0 L 742.8,260.0 L 735.6,233.3 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,233.3 L 699.5,260.0 L 692.3,260.0 L 685.1,212.0 L 677.8,260.0 L 670.6,206.7 L 663.4,212.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,212.0 L 620.1,230.0 L 612.9,233.3 L 605.7,260.0 L 598.5,236.0 L 591.2,212.0 L 584.0,236.0 L 576.8,225.7 L 569.6,206.7 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,236.0 L 533.5,225.7 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,260.0 L 468.6,230.0 L 461.3,233.3 L 454.1,260.0 L 446.9,260.0 L 439.7,233.3 L 432.5,260.0 L 425.3,233.3 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,260.0 L 389.2,260.0 L 382.0,233.3 L 374.7,236.0 L 367.5,260.0 L 360.3,212.0 L 353.1,260.0 L 345.9,188.0 L 338.7,233.3 L 331.4,260.0 L 324.2,260.0 L 317.0,236.0 L 309.8,260.0 L 302.6,260.0 L 295.4,236.0 L 288.1,260.0 L 280.9,212.0 L 273.7,260.0 L 266.5,236.0 L 259.3,236.0 L 252.1,260.0 L 244.8,236.0 L 237.6,212.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,236.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,260.0 L 172.7,260.0 L 165.5,260.0 L 158.2,236.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,236.0 L 71.6,206.7 L 64.4,157.1 L 57.2,92.0 L 50.0,46.7 Z" fill="#f778ba" opacity="0.7"/><path d="M 50.0,20.0 L 57.2,20.0 L 64.4,20.0 L 71.6,20.0 L 78.9,20.0 L 86.1,20.0 L 93.3,20.0 L 100.5,20.0 L 107.7,20.0 L 114.9,20.0 L 122.2,20.0 L 129.4,20.0 L 136.6,20.0 L 143.8,20.0 L 151.0,20.0 L 158.2,20.0 L 165.5,20.0 L 172.7,20.0 L 179.9,20.0 L 187.1,20.0 L 194.3,20.0 L 201.5,20.0 L 208.8,20.0 L 216.0,20.0 L 223.2,20.0 L 230.4,20.0 L 237.6,20.0 L 244.8,20.0 L 252.1,20.0 L 259.3,20.0 L 266.5,20.0 L 273.7,20.0 L 280.9,20.0 L 288.1,20.0 L 295.4,20.0 L 302.6,20.0 L 309.8,20.0 L 317.0,20.0 L 324.2,20.0 L 331.4,20.0 L 338.7,20.0 L 345.9,20.0 L 353.1,20.0 L 360.3,20.0 L 367.5,20.0 L 374.7,20.0 L 382.0,20.0 L 389.2,20.0 L 396.4,20.0 L 403.6,20.0 L 410.8,20.0 L 418.0,20.0 L 425.3,20.0 L 432.5,20.0 L 439.7,20.0 L 446.9,20.0 L 454.1,20.0 L 461.3,20.0 L 468.6,20.0 L 475.8,20.0 L 483.0,20.0 L 490.2,20.0 L 497.4,20.0 L 504.6,20.0 L 511.9,20.0 L 519.1,20.0 L 526.3,20.0 L 533.5,20.0 L 540.7,20.0 L 547.9,20.0 L 555.2,20.0 L 562.4,20.0 L 569.6,20.0 L 576.8,20.0 L 584.0,20.0 L 591.2,20.0 L 598.5,20.0 L 605.7,20.0 L 612.9,20.0 L 620.1,20.0 L 627.3,20.0 L 634.5,20.0 L 641.8,20.0 L 649.0,20.0 L 656.2,20.0 L 663.4,20.0 L 670.6,20.0 L 677.8,20.0 L 685.1,20.0 L 692.3,20.0 L 699.5,20.0 L 706.7,20.0 L 713.9,20.0 L 721.1,20.0 L 728.4,20.0 L 735.6,20.0 L 742.8,20.0 L 750.0,20.0 L 750.0,200.0 L 742.8,260.0 L 735.6,233.3 L 728.4,260.0 L 721.1,260.0 L 713.9,260.0 L 706.7,233.3 L 699.5,260.0 L 692.3,260.0 L 685.1,212.0 L 677.8,260.0 L 670.6,206.7 L 663.4,212.0 L 656.2,260.0 L 649.0,260.0 L 641.8,260.0 L 634.5,260.0 L 627.3,212.0 L 620.1,230.0 L 612.9,233.3 L 605.7,260.0 L 598.5,212.0 L 591.2,188.0 L 584.0,236.0 L 576.8,225.7 L 569.6,206.7 L 562.4,260.0 L 555.2,260.0 L 547.9,260.0 L 540.7,212.0 L 533.5,225.7 L 526.3,260.0 L 519.1,260.0 L 511.9,260.0 L 504.6,260.0 L 497.4,260.0 L 490.2,260.0 L 483.0,260.0 L 475.8,236.0 L 468.6,230.0 L 461.3,233.3 L 454.1,260.0 L 446.9,260.0 L 439.7,233.3 L 432.5,260.0 L 425.3,233.3 L 418.0,260.0 L 410.8,260.0 L 403.6,260.0 L 396.4,236.0 L 389.2,260.0 L 382.0,233.3 L 374.7,236.0 L 367.5,260.0 L 360.3,212.0 L 353.1,260.0 L 345.9,188.0 L 338.7,233.3 L 331.4,260.0 L 324.2,260.0 L 317.0,236.0 L 309.8,260.0 L 302.6,260.0 L 295.4,236.0 L 288.1,260.0 L 280.9,212.0 L 273.7,260.0 L 266.5,236.0 L 259.3,236.0 L 252.1,260.0 L 244.8,236.0 L 237.6,212.0 L 230.4,260.0 L 223.2,260.0 L 216.0,260.0 L 208.8,236.0 L 201.5,260.0 L 194.3,260.0 L 187.1,260.0 L 179.9,236.0 L 172.7,260.0 L 165.5,260.0 L 158.2,236.0 L 151.0,260.0 L 143.8,260.0 L 136.6,260.0 L 129.4,260.0 L 122.2,260.0 L 114.9,260.0 L 107.7,260.0 L 100.5,260.0 L 93.3,260.0 L 86.1,260.0 L 78.9,236.0 L 71.6,206.7 L 64.4,157.1 L 57.2,92.0 L 50.0,46.7 Z" fill="#79c0ff" opacity="0.7"/>
+  <text x="50.0" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 0</text><text x="136.5979381443299" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 12</text><text x="223.1958762886598" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 24</text><text x="309.7938144329897" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 36</text><text x="396.3917525773196" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 48</text><text x="482.9896907216495" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 60</text><text x="569.5876288659794" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 72</text><text x="656.1855670103093" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 84</text><text x="742.7835051546392" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 96</text>
+  <rect x="765" y="35" width="12" height="12" rx="2" fill="#3fb950" opacity="0.8"/><text x="783" y="45" fill="#c9d1d9" font-size="11">AdaBoost</text><rect x="765" y="55" width="12" height="12" rx="2" fill="#58a6ff" opacity="0.8"/><text x="783" y="65" fill="#c9d1d9" font-size="11">DecisionTree</text><rect x="765" y="75" width="12" height="12" rx="2" fill="#d2a8ff" opacity="0.8"/><text x="783" y="85" fill="#c9d1d9" font-size="11">ExtraTrees</text><rect x="765" y="95" width="12" height="12" rx="2" fill="#f0883e" opacity="0.8"/><text x="783" y="105" fill="#c9d1d9" font-size="11">GradientBoosting</text><rect x="765" y="115" width="12" height="12" rx="2" fill="#da3633" opacity="0.8"/><text x="783" y="125" fill="#c9d1d9" font-size="11">KNeighbors</text><rect x="765" y="135" width="12" height="12" rx="2" fill="#d29922" opacity="0.8"/><text x="783" y="145" fill="#c9d1d9" font-size="11">LightGBM</text><rect x="765" y="155" width="12" height="12" rx="2" fill="#3fb5e5" opacity="0.8"/><text x="783" y="165" fill="#c9d1d9" font-size="11">RandomForest</text><rect x="765" y="175" width="12" height="12" rx="2" fill="#f778ba" opacity="0.8"/><text x="783" y="185" fill="#c9d1d9" font-size="11">SVR</text><rect x="765" y="195" width="12" height="12" rx="2" fill="#79c0ff" opacity="0.8"/><text x="783" y="205" fill="#c9d1d9" font-size="11">XGBoost</text>
+  <text x="400.0" y="16" text-anchor="middle" fill="#79c0ff" font-size="13" font-weight="bold">Population Algorithm Distribution</text>
+</svg>
+  </div>
+
+  <!-- Section 4d: Operator Impact -->
+  <h2>4d. Genetic Operator Impact</h2>
+  <div class="card">
+    <h3>Operator Contribution to Improvements</h3>
+<p style="color: #8b949e; margin-bottom: 10px;">Total improvements: 14</p>
+<div style="display: flex; align-items: center; margin: 8px 0; gap: 12px;">
+  <div style="width: 200px; text-align: right; color: #c9d1d9;">Block crossover/mutation</div>
+  <div class="bar neutral" style="width: 229px;"></div>
+  <span style="color: #8b949e;">8 (57%)</span>
+</div><div style="display: flex; align-items: center; margin: 8px 0; gap: 12px;">
+  <div style="width: 200px; text-align: right; color: #c9d1d9;">Hyperparameter tweak</div>
+  <div class="bar neutral" style="width: 143px;"></div>
+  <span style="color: #8b949e;">5 (36%)</span>
+</div><div style="display: flex; align-items: center; margin: 8px 0; gap: 12px;">
+  <div style="width: 200px; text-align: right; color: #c9d1d9;">Algorithm swap</div>
+  <div class="bar neutral" style="width: 29px;"></div>
+  <span style="color: #8b949e;">1 (7%)</span>
+</div>
+<h3 style="margin-top: 20px;">Improvement Trajectory</h3>
+<table><thead><tr><th>Transition</th><th>Delta</th><th>Algorithm</th></tr></thead>
+<tbody><tr>
+  <td>Gen 0 &rarr; 0</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.022869</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 0 &rarr; 1</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.001397</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 1 &rarr; 5</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.002442</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 5 &rarr; 9</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000060</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 9 &rarr; 10</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000255</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 10 &rarr; 10</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000430</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 10 &rarr; 13</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000002</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 13 &rarr; 15</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000351</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 15 &rarr; 18</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000240</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 18 &rarr; 35</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000106</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 35 &rarr; 42</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000007</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 42 &rarr; 47</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000105</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 47 &rarr; 49</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000299</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 49 &rarr; 52</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000231</td>
+  <td>XGBoost</td>
+</tr></tbody></table>
+  </div>
+
+  <div class="footer">
+    Generated by AutoML Research Framework &bull; 2026-04-03 10:37:10
+  </div>
+</div>
+</body>
+</html>

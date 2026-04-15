@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoML Report: email-propensity</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #0d1117; color: #c9d1d9; line-height: 1.6; padding: 20px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { color: #58a6ff; border-bottom: 2px solid #30363d; padding-bottom: 12px; margin-bottom: 20px; font-size: 28px; }
+  h2 { color: #79c0ff; margin: 30px 0 15px 0; font-size: 20px; border-bottom: 1px solid #21262d; padding-bottom: 8px; }
+  h3 { color: #d2a8ff; margin: 20px 0 10px 0; font-size: 16px; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .metric-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px; margin-bottom: 20px;
+  }
+  .metric-box {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    padding: 15px; text-align: center;
+  }
+  .metric-box .label { color: #8b949e; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .metric-box .value { color: #58a6ff; font-size: 24px; font-weight: bold; margin-top: 5px; }
+  .metric-box .value.highlight { color: #3fb950; font-size: 28px; }
+  .pipeline-step {
+    display: inline-block; background: #1f2937; border: 1px solid #374151;
+    border-radius: 4px; padding: 4px 10px; margin: 2px; font-family: monospace; font-size: 13px;
+    color: #7dd3fc;
+  }
+  .arrow { color: #6b7280; margin: 0 4px; }
+  table {
+    width: 100%; border-collapse: collapse; margin: 10px 0;
+    font-size: 13px;
+  }
+  th { background: #21262d; color: #79c0ff; padding: 8px 12px; text-align: left; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+  tr:hover td { background: #1c2128; }
+  .bar-container { display: flex; align-items: center; gap: 8px; }
+  .bar { height: 18px; border-radius: 3px; min-width: 2px; }
+  .bar.positive { background: linear-gradient(90deg, #238636, #3fb950); }
+  .bar.negative { background: linear-gradient(90deg, #da3633, #f85149); }
+  .bar.neutral { background: linear-gradient(90deg, #1f6feb, #58a6ff); }
+  svg { width: 100%; height: auto; }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .tag-green { background: #0d2818; color: #3fb950; border: 1px solid #238636; }
+  .tag-blue { background: #0c2d6b; color: #58a6ff; border: 1px solid #1f6feb; }
+  .tag-purple { background: #271052; color: #d2a8ff; border: 1px solid #8957e5; }
+  .tag-yellow { background: #2d2000; color: #d29922; border: 1px solid #9e6a03; }
+  .change-label { font-size: 11px; color: #d2a8ff; margin-left: 8px; }
+  .footer { text-align: center; color: #484f58; margin-top: 40px; padding: 20px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AutoML Evolution Report: email-propensity</h1>
+  
+  <!-- Section 1: Summary -->
+  <h2>1. Best Model Summary</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">&#x1F4A1; How to read this section</div>
+  <b>AUC interpretation:</b> 0.5 = random guessing, 1.0 = perfect separation.<br>0.9 &ndash; 1.0: Excellent &nbsp;|&nbsp; 0.8 &ndash; 0.9: Good &nbsp;|&nbsp; 0.7 &ndash; 0.8: Fair &nbsp;|&nbsp; 0.6 &ndash; 0.7: Poor &nbsp;|&nbsp; &lt; 0.6: Near-random<br>This model scores <b>0.8865</b> &mdash; rated <b>Good</b>.<br><b>Pipeline steps explained:</b> <em>SimpleImputer</em> fills missing values; <em>Winsorizer / OutlierClipper</em> clips extreme values to reduce outlier influence; <em>StandardScaler / MinMaxScaler / RobustScaler</em> normalises feature ranges; <em>PCA</em> reduces dimensionality; <em>SelectKBest</em> keeps only the most predictive features; the final step is the ML algorithm (e.g., XGBoost, LightGBM, RandomForest).
+</div>
+  <div class="metric-grid">
+    <div class="metric-box">
+      <div class="label">Best auc</div>
+      <div class="value highlight">0.886451</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Generations</div>
+      <div class="value">11</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Evaluations</div>
+      <div class="value">125</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Success Rate</div>
+      <div class="value">87%</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Found at Gen</div>
+      <div class="value">9</div>
+    </div>
+    <div class="metric-box">
+      <div class="label">Training Time</div>
+      <div class="value">0.9s</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Winning Pipeline</h3>
+    <p style="margin-top: 10px;">
+      <span class="pipeline-step">SimpleImputer_mean(strategy=mean)</span><span class="arrow"> &rarr; </span><span class="pipeline-step">Winsorizer(lower_pct=5, upper_pct=98)</span><span class="arrow"> &rarr; </span><span class="pipeline-step">PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)</span><span class="arrow"> &rarr; </span><span class="pipeline-step">XGBoost(n_estimators=186, learning_rate=0.10881122559526445, max_depth=4, min_child_weight=10, subsample=0.8539913152788241, colsample_bytree=0.767069938514854, reg_alpha=0.0002943510239436758, reg_lambda=0.30344832220604906, verbosity=0)</span>
+    </p>
+  </div>
+
+  <!-- Section 2: Feature Importance -->
+  <h2>2. Variable Importance</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">&#x1F4A1; Interpreting Variable Importance</div>
+  <b>Higher bar = more influential</b> on the model's predictions.<br><b>Built-in importance</b> comes from the model itself (e.g., how often a feature is used in tree splits). <b>Permutation importance</b> measures how much the score degrades when a feature's values are randomly shuffled.<br><em>Caveat:</em> Correlated features can split importance between them, making each look less important than it truly is.<br><b>Business tip:</b> Focus data-quality and feature-engineering efforts on the top features. Features with near-zero importance may be candidates for removal, simplifying the model without hurting performance.
+</div>
+  <div class="card">
+    <p style="color: #8b949e; margin-bottom: 10px;">Method: permutation</p>
+    <svg viewBox="0 0 900 550" xmlns="http://www.w3.org/2000/svg">
+  <text x="172" y="25.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">MONTHS_SINCE_LAST_EMAIL</text><rect x="180" y="10" width="640.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="826.0" y="25.4" fill="#8b949e" font-size="11">0.1082</text><text x="172" y="51.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">RECENT_3M_EVENTS</text><rect x="180" y="36" width="423.2" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="609.1686123909906" y="51.4" fill="#8b949e" font-size="11">0.0715</text><text x="172" y="77.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">TOTAL_EMAIL_OPENS</text><rect x="180" y="62" width="68.4" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="254.44448360791642" y="77.4" fill="#8b949e" font-size="11">0.0116</text><text x="172" y="103.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">ACTIVE_MONTHS</text><rect x="180" y="88" width="30.3" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="216.2548909147449" y="103.4" fill="#8b949e" font-size="11">0.0051</text><text x="172" y="129.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">MID_3M_EVENTS</text><rect x="180" y="114" width="12.9" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="198.8937159855582" y="129.4" fill="#8b949e" font-size="11">0.0022</text><text x="172" y="155.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">NEW_BRAND_ENGAGEMENTS</text><rect x="180" y="140" width="10.8" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="196.75490435478258" y="155.4" fill="#8b949e" font-size="11">0.0018</text><text x="172" y="181.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">SPECIALTY_PRIMARY_GROUP</text><rect x="180" y="166" width="10.1" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="196.08890285189628" y="181.4" fill="#8b949e" font-size="11">0.0017</text><text x="172" y="207.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">EARLY_6M_EVENTS</text><rect x="180" y="192" width="9.2" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="195.2143276600957" y="207.4" fill="#8b949e" font-size="11">0.0016</text><text x="172" y="233.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">TOTAL_EMAIL_CLICKS</text><rect x="180" y="218" width="9.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="194.97155675989444" y="233.4" fill="#8b949e" font-size="11">0.0015</text><text x="172" y="259.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">BRANDS_ENGAGED</text><rect x="180" y="244" width="7.5" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="193.52076344123037" y="259.4" fill="#8b949e" font-size="11">0.0013</text><text x="172" y="285.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">GRADUATION_YEAR</text><rect x="180" y="270" width="3.3" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="189.25015821202413" y="285.4" fill="#8b949e" font-size="11">0.0005</text><text x="172" y="311.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">IS_EXECUTIVE</text><rect x="180" y="296" width="3.1" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="189.06103409982714" y="311.4" fill="#8b949e" font-size="11">0.0005</text><text x="172" y="337.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">AGE</text><rect x="180" y="322" width="2.7" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="188.72031769850994" y="337.4" fill="#8b949e" font-size="11">0.0005</text><text x="172" y="363.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">GENDER</text><rect x="180" y="348" width="2.4" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="188.35657991872534" y="363.4" fill="#8b949e" font-size="11">0.0004</text><text x="172" y="389.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">EVENT_EVENTS_12M</text><rect x="180" y="374" width="2.1" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="188.13180755078017" y="389.4" fill="#8b949e" font-size="11">0.0004</text><text x="172" y="415.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">AD_EVENTS_12M</text><rect x="180" y="400" width="2.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="187.0406081637764" y="415.4" fill="#8b949e" font-size="11">0.0002</text><text x="172" y="441.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">PERSON_TYPE</text><rect x="180" y="426" width="2.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="186.23730157877083" y="441.4" fill="#8b949e" font-size="11">0.0000</text><text x="172" y="467.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">IS_HOSPITALIST</text><rect x="180" y="452" width="2.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="186.1849384070205" y="467.4" fill="#8b949e" font-size="11">0.0000</text><text x="172" y="493.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">IS_KEY_OPINION_LEADER</text><rect x="180" y="478" width="2.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="186.1421046907204" y="493.4" fill="#8b949e" font-size="11">0.0000</text><text x="172" y="519.4" text-anchor="end" fill="#c9d1d9" font-size="12" font-family="monospace">WEB_EVENTS_12M</text><rect x="180" y="504" width="2.0" height="22" rx="3" fill="#3fb950" opacity="0.8"/><text x="186.0" y="519.4" fill="#8b949e" font-size="11">0.0000</text>
+</svg>
+  </div>
+
+  <!-- Section 2b: SHAP Analysis -->
+  <h2>2b. SHAP Analysis</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">💡 Understanding SHAP Values</div>
+  <p><strong>SHAP (SHapley Additive exPlanations)</strong> provides a principled way to explain
+        individual predictions by assigning each feature a contribution value based on cooperative game theory.</p>
+        <ul style="margin: 8px 0; padding-left: 20px; color: #c9d1d9;">
+          <li><strong>Waterfall plot:</strong> Decomposes a single prediction, showing how each feature
+          shifts the output from the baseline (average prediction) to the final value. This answers
+          "why did the model make this specific prediction?"</li>
+          <li><strong>Beeswarm plot:</strong> Shows the distribution of SHAP values across all samples.
+          Features at the top have the largest overall impact. The color-value relationship reveals
+          direction — e.g., if high values of RECENT_3M_EVENTS (red dots) appear on the right (positive SHAP),
+          that feature increases predicted propensity.</li>
+          <li><strong>Heatmap:</strong> Reveals patterns across samples. Clusters of similar SHAP patterns
+          indicate distinct subgroups in your data that the model treats differently.</li>
+        </ul>
+        <p><strong>Key difference from Variable Importance:</strong> Feature importance (Section 2) shows
+        <em>how much</em> a feature matters overall. SHAP shows <em>how</em> and <em>in which direction</em>
+        each feature drives predictions, including non-linear and interaction effects.</p>
+</div>
+  <div class="card">
+    <p style="color: #8b949e;">SHAP analysis not available for this run.</p>
+  </div>
+
+  <!-- Section 3: Feature Interactions -->
+  <h2>3. Feature Interactions</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">&#x1F4A1; Understanding Feature Interactions</div>
+  An <b>interaction</b> means two features <em>together</em> predict better than either alone.<br>The <b>interaction strength</b> number shows how much extra predictive power the pair provides beyond their individual contributions.<br><b>How to use this:</b> Strong interactions suggest the relationship between these features and the target is non-linear or conditional &mdash; e.g., &ldquo;feature A only matters when feature B is high.&rdquo;<br><em>Note on SHAP:</em> For deeper interaction analysis, SHAP (SHapley Additive exPlanations) values can decompose individual predictions. SHAP interaction values show exactly how pairs of features jointly influence each prediction, going beyond the aggregate view shown here.
+</div>
+  <div class="card">
+    <table>
+<thead><tr>
+  <th>#</th><th>Feature A</th><th>Feature B</th><th>Pair auc</th>
+  <th>A alone</th><th>B alone</th><th>Interaction</th>
+</tr></thead>
+<tbody><tr>
+  <td>1</td>
+  <td><b>TOTAL_EMAIL_CLICKS</b></td>
+  <td><b>BRANDS_ENGAGED</b></td>
+  <td>0.6791</td>
+  <td>0.6127</td>
+  <td>0.6288</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 200px;"></div>
+      <span style="color: #3fb950;">+0.0504</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>2</td>
+  <td><b>MONTHS_SINCE_LAST_EMAIL</b></td>
+  <td><b>TOTAL_EMAIL_OPENS</b></td>
+  <td>0.8959</td>
+  <td>0.8461</td>
+  <td>0.8364</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 198px;"></div>
+      <span style="color: #3fb950;">+0.0498</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>3</td>
+  <td><b>MONTHS_SINCE_LAST_EMAIL</b></td>
+  <td><b>MID_3M_EVENTS</b></td>
+  <td>0.8905</td>
+  <td>0.8461</td>
+  <td>0.8104</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 176px;"></div>
+      <span style="color: #3fb950;">+0.0444</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>4</td>
+  <td><b>MONTHS_SINCE_LAST_EMAIL</b></td>
+  <td><b>ACTIVE_MONTHS</b></td>
+  <td>0.8903</td>
+  <td>0.8461</td>
+  <td>0.8384</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 175px;"></div>
+      <span style="color: #3fb950;">+0.0442</span>
+    </div>
+  </td>
+</tr><tr>
+  <td>5</td>
+  <td><b>MONTHS_SINCE_LAST_EMAIL</b></td>
+  <td><b>EARLY_6M_EVENTS</b></td>
+  <td>0.8856</td>
+  <td>0.8461</td>
+  <td>0.7673</td>
+  <td>
+    <div class="bar-container">
+      <div class="bar positive" style="width: 157px;"></div>
+      <span style="color: #3fb950;">+0.0395</span>
+    </div>
+  </td>
+</tr></tbody>
+</table>
+  </div>
+
+  <!-- Section 4a: Pipeline Evolution -->
+  <h2>4a. Best Pipeline Evolution</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">&#x1F4A1; Reading the Evolution Diagram</div>
+  This table uses a <b>genetic algorithm metaphor</b>: pipelines are &ldquo;organisms&rdquo; and their building blocks (imputer, scaler, feature selector, algorithm) are &ldquo;genes.&rdquo;<br><b>Block switching</b> is like biological crossover &mdash; successful components from different parent pipelines are recombined to create better offspring.<br>Each row is a milestone where the best pipeline improved. Coloured tags on the right show <em>which type of genetic operation</em> caused the improvement (algorithm swap, block mutation, or parameter tweak).
+</div>
+  <div class="card">
+    <table>
+<thead><tr>
+  <th>Gen</th><th>Preparation</th><th>Preprocessing</th><th>Feature Sel.</th><th>Algorithm</th><th>auc</th><th>Changed</th>
+</tr></thead>
+<tbody><tr>
+  <td style="font-weight: bold;">0</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">ExtraTrees</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.861487</td>
+  <td></td>
+</tr><tr>
+  <td style="font-weight: bold;">0</td>
+  <td><span class="pipeline-step">Winsorizer</span></td>
+  <td><span class="pipeline-step">RobustScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.885451</td>
+  <td><span class="tag tag-blue">prep</span> <span class="tag tag-blue">preproc</span> <span class="tag tag-yellow">algorithm</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">1</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer+SimpleImputer_median</span></td>
+  <td><span class="pipeline-step">RobustScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.885943</td>
+  <td><span class="tag tag-blue">prep</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">5</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+SimpleImputer_most_frequent+SimpleImputer_median</span></td>
+  <td><span class="pipeline-step">RobustScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.886074</td>
+  <td><span class="tag tag-blue">prep</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">9</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+SimpleImputer_most_frequent+SimpleImputer_median</span></td>
+  <td><span class="pipeline-step">RobustScaler</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.886121</td>
+  <td><span class="tag tag-green">params</span> </td>
+</tr><tr>
+  <td style="font-weight: bold;">9</td>
+  <td><span class="pipeline-step">SimpleImputer_mean+Winsorizer</span></td>
+  <td><span class="pipeline-step">PolynomialFeatures</span></td>
+  <td style="color: #484f58; text-align: center;">--</td>
+  <td><span class="pipeline-step" style="color: #3fb950;">XGBoost</span></td>
+  <td style="font-weight: bold; color: #3fb950;">0.886451</td>
+  <td><span class="tag tag-blue">prep</span> <span class="tag tag-blue">preproc</span> </td>
+</tr></tbody>
+</table>
+  </div>
+
+  <!-- Section 4b: Score Progression -->
+  <h2>4b. Score Progression</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">&#x1F4A1; Interpreting the Score Curve</div>
+  <b>Steep early rise</b> = easy initial gains from finding a good algorithm family.<br><b>Flat plateau</b> = diminishing returns; the search has likely found a near-optimal region.<br>If the curve plateaus <em>early</em>, the problem may be relatively simple or the budget generous. A <em>late</em> plateau suggests the search benefited from extended exploration.<br>The gap between start and end represents the <b>total improvement</b> found by evolution.
+</div>
+  <div class="card">
+    <svg viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="280" fill="#0d1117" rx="6"/>
+  <text x="62" y="244.0" text-anchor="end" fill="#8b949e" font-size="11">0.8855</text><line x1="70" y1="240.0" x2="880" y2="240.0" stroke="#21262d" stroke-width="1"/><text x="62" y="200.0000000000049" text-anchor="end" fill="#8b949e" font-size="11">0.8857</text><line x1="70" y1="196.0000000000049" x2="880" y2="196.0000000000049" stroke="#21262d" stroke-width="1"/><text x="62" y="156.00000000000978" text-anchor="end" fill="#8b949e" font-size="11">0.8859</text><line x1="70" y1="152.00000000000978" x2="880" y2="152.00000000000978" stroke="#21262d" stroke-width="1"/><text x="62" y="111.99999999999022" text-anchor="end" fill="#8b949e" font-size="11">0.8861</text><line x1="70" y1="107.99999999999022" x2="880" y2="107.99999999999022" stroke="#21262d" stroke-width="1"/><text x="62" y="67.99999999999511" text-anchor="end" fill="#8b949e" font-size="11">0.8863</text><line x1="70" y1="63.99999999999511" x2="880" y2="63.99999999999511" stroke="#21262d" stroke-width="1"/><text x="62" y="24.0" text-anchor="end" fill="#8b949e" font-size="11">0.8865</text><line x1="70" y1="20.0" x2="880" y2="20.0" stroke="#21262d" stroke-width="1"/>
+  <text x="70.0" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 0</text><text x="143.63636363636363" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 1</text><text x="217.27272727272728" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 2</text><text x="290.9090909090909" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 3</text><text x="364.54545454545456" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 4</text><text x="438.1818181818182" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 5</text><text x="511.8181818181818" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 6</text><text x="585.4545454545455" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 7</text><text x="659.0909090909091" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 8</text><text x="732.7272727272727" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 9</text><text x="806.3636363636364" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 10</text><text x="880.0" y="272" text-anchor="middle" fill="#8b949e" font-size="11">Gen 11</text>
+  <path d="M 70.0,240.0 L 143.6,131.8 L 217.3,131.8 L 290.9,131.8 L 364.5,131.8 L 438.2,102.9 L 511.8,102.9 L 585.5,102.9 L 659.1,102.9 L 732.7,20.0 L 806.4,20.0 L 880.0,20.0 L 880.0,240.0 L 70.0,240.0 Z" fill="url(#scoreGrad_email_propensity)" opacity="0.3"/>
+  <path d="M 70.0,240.0 L 143.6,131.8 L 217.3,131.8 L 290.9,131.8 L 364.5,131.8 L 438.2,102.9 L 511.8,102.9 L 585.5,102.9 L 659.1,102.9 L 732.7,20.0 L 806.4,20.0 L 880.0,20.0" fill="none" stroke="#3fb950" stroke-width="2"/>
+  <defs>
+    <linearGradient id="scoreGrad_email_propensity" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0.0"/>
+    </linearGradient>
+  </defs>
+  <text x="450.0" y="16" text-anchor="middle" fill="#79c0ff" font-size="13" font-weight="bold">Best auc over generations</text>
+</svg>
+  </div>
+
+  <!-- Section 4c: Algorithm Diversity -->
+  <h2>4c. Algorithm Diversity Over Time</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">&#x1F4A1; What Algorithm Diversity Shows</div>
+  <b>Algorithm diversity</b> measures how many different ML algorithm families are represented in the population at each generation.<br>Early generations typically explore many algorithm families. As evolution progresses, the best-performing type dominates. A rapid convergence to one algorithm (like XGBoost) suggests it is clearly superior for this problem.<br><em>If diversity stays high throughout</em>, the problem may be ambiguous or the search space may need refinement.
+</div>
+  <div class="card">
+    <svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="300" fill="#0d1117" rx="6"/>
+  <text x="42" y="264.0" text-anchor="end" fill="#8b949e" font-size="11">0%</text><line x1="50" y1="260.0" x2="750" y2="260.0" stroke="#21262d" stroke-width="1"/><text x="42" y="204.0" text-anchor="end" fill="#8b949e" font-size="11">25%</text><line x1="50" y1="200.0" x2="750" y2="200.0" stroke="#21262d" stroke-width="1"/><text x="42" y="144.0" text-anchor="end" fill="#8b949e" font-size="11">50%</text><line x1="50" y1="140.0" x2="750" y2="140.0" stroke="#21262d" stroke-width="1"/><text x="42" y="84.0" text-anchor="end" fill="#8b949e" font-size="11">75%</text><line x1="50" y1="80.0" x2="750" y2="80.0" stroke="#21262d" stroke-width="1"/><text x="42" y="24.0" text-anchor="end" fill="#8b949e" font-size="11">100%</text><line x1="50" y1="20.0" x2="750" y2="20.0" stroke="#21262d" stroke-width="1"/>
+  <path d="M 50.0,233.3 L 113.6,260.0 L 177.3,260.0 L 240.9,260.0 L 304.5,260.0 L 368.2,260.0 L 431.8,260.0 L 495.5,260.0 L 559.1,260.0 L 622.7,260.0 L 686.4,260.0 L 750.0,260.0 L 750.0,260.0 L 686.4,260.0 L 622.7,260.0 L 559.1,260.0 L 495.5,260.0 L 431.8,260.0 L 368.2,260.0 L 304.5,260.0 L 240.9,260.0 L 177.3,260.0 L 113.6,260.0 L 50.0,260.0 Z" fill="#3fb950" opacity="0.7"/><path d="M 50.0,180.0 L 113.6,260.0 L 177.3,260.0 L 240.9,260.0 L 304.5,260.0 L 368.2,260.0 L 431.8,260.0 L 495.5,260.0 L 559.1,260.0 L 622.7,260.0 L 686.4,260.0 L 750.0,260.0 L 750.0,260.0 L 686.4,260.0 L 622.7,260.0 L 559.1,260.0 L 495.5,260.0 L 431.8,260.0 L 368.2,260.0 L 304.5,260.0 L 240.9,260.0 L 177.3,260.0 L 113.6,260.0 L 50.0,233.3 Z" fill="#58a6ff" opacity="0.7"/><path d="M 50.0,100.0 L 113.6,92.0 L 177.3,122.9 L 240.9,233.3 L 304.5,260.0 L 368.2,260.0 L 431.8,260.0 L 495.5,260.0 L 559.1,260.0 L 622.7,260.0 L 686.4,260.0 L 750.0,260.0 L 750.0,260.0 L 686.4,260.0 L 622.7,260.0 L 559.1,260.0 L 495.5,260.0 L 431.8,260.0 L 368.2,260.0 L 304.5,260.0 L 240.9,260.0 L 177.3,260.0 L 113.6,260.0 L 50.0,180.0 Z" fill="#d2a8ff" opacity="0.7"/><path d="M 50.0,73.3 L 113.6,92.0 L 177.3,122.9 L 240.9,233.3 L 304.5,260.0 L 368.2,260.0 L 431.8,260.0 L 495.5,260.0 L 559.1,260.0 L 622.7,260.0 L 686.4,260.0 L 750.0,260.0 L 750.0,260.0 L 686.4,260.0 L 622.7,260.0 L 559.1,260.0 L 495.5,260.0 L 431.8,260.0 L 368.2,260.0 L 304.5,260.0 L 240.9,233.3 L 177.3,122.9 L 113.6,92.0 L 50.0,100.0 Z" fill="#f0883e" opacity="0.7"/><path d="M 50.0,46.7 L 113.6,92.0 L 177.3,122.9 L 240.9,233.3 L 304.5,236.0 L 368.2,260.0 L 431.8,260.0 L 495.5,260.0 L 559.1,260.0 L 622.7,260.0 L 686.4,260.0 L 750.0,260.0 L 750.0,260.0 L 686.4,260.0 L 622.7,260.0 L 559.1,260.0 L 495.5,260.0 L 431.8,260.0 L 368.2,260.0 L 304.5,260.0 L 240.9,233.3 L 177.3,122.9 L 113.6,92.0 L 50.0,73.3 Z" fill="#da3633" opacity="0.7"/><path d="M 50.0,20.0 L 113.6,20.0 L 177.3,20.0 L 240.9,20.0 L 304.5,20.0 L 368.2,20.0 L 431.8,20.0 L 495.5,20.0 L 559.1,20.0 L 622.7,20.0 L 686.4,20.0 L 750.0,20.0 L 750.0,260.0 L 686.4,260.0 L 622.7,260.0 L 559.1,260.0 L 495.5,260.0 L 431.8,260.0 L 368.2,260.0 L 304.5,236.0 L 240.9,233.3 L 177.3,122.9 L 113.6,92.0 L 50.0,46.7 Z" fill="#d29922" opacity="0.7"/>
+  <text x="50.0" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 0</text><text x="113.63636363636364" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 1</text><text x="177.27272727272728" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 2</text><text x="240.9090909090909" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 3</text><text x="304.54545454545456" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 4</text><text x="368.1818181818182" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 5</text><text x="431.8181818181818" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 6</text><text x="495.45454545454544" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 7</text><text x="559.0909090909091" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 8</text><text x="622.7272727272727" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 9</text><text x="686.3636363636364" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 10</text><text x="750.0" y="292" text-anchor="middle" fill="#8b949e" font-size="11">Gen 11</text>
+  <rect x="765" y="35" width="12" height="12" rx="2" fill="#3fb950" opacity="0.8"/><text x="783" y="45" fill="#c9d1d9" font-size="11">AdaBoost</text><rect x="765" y="55" width="12" height="12" rx="2" fill="#58a6ff" opacity="0.8"/><text x="783" y="65" fill="#c9d1d9" font-size="11">DecisionTree</text><rect x="765" y="75" width="12" height="12" rx="2" fill="#d2a8ff" opacity="0.8"/><text x="783" y="85" fill="#c9d1d9" font-size="11">ExtraTrees</text><rect x="765" y="95" width="12" height="12" rx="2" fill="#f0883e" opacity="0.8"/><text x="783" y="105" fill="#c9d1d9" font-size="11">GradientBoosting</text><rect x="765" y="115" width="12" height="12" rx="2" fill="#da3633" opacity="0.8"/><text x="783" y="125" fill="#c9d1d9" font-size="11">KNeighbors</text><rect x="765" y="135" width="12" height="12" rx="2" fill="#d29922" opacity="0.8"/><text x="783" y="145" fill="#c9d1d9" font-size="11">XGBoost</text>
+  <text x="400.0" y="16" text-anchor="middle" fill="#79c0ff" font-size="13" font-weight="bold">Population Algorithm Distribution</text>
+</svg>
+  </div>
+
+  <!-- Section 4d: Operator Impact -->
+  <h2>4d. Genetic Operator Impact</h2>
+  <div style="border-left: 4px solid #58a6ff; background: #0c2d6b22;
+      border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 14px 0;
+      color: #a2d2fb; font-size: 13px; line-height: 1.7;">
+  <div style="font-weight: 700; margin-bottom: 6px; color: #79c0ff; font-size: 14px;">&#x1F4A1; Genetic Operator Types Explained</div>
+  <b>Algorithm swap:</b> Completely replacing the ML algorithm (e.g., RandomForest &rarr; XGBoost). Highest impact, rarest.<br><b>Block crossover / mutation:</b> Swapping or adding preprocessing / feature-selection steps. Moderate impact.<br><b>Hyperparameter tweak:</b> Fine-tuning numbers within the same algorithm (e.g., learning_rate, n_estimators). Smallest per-step impact but most frequent.<br><em>Typical pattern:</em> Algorithm swaps make the biggest early jumps, then block mutations and parameter tweaks refine. Diminishing improvements are normal and expected in evolutionary optimisation.
+</div>
+  <div class="card">
+    <h3>Operator Contribution to Improvements</h3>
+<p style="color: #8b949e; margin-bottom: 10px;">Total improvements: 5</p>
+<div style="display: flex; align-items: center; margin: 8px 0; gap: 12px;">
+  <div style="width: 200px; text-align: right; color: #c9d1d9;">Block crossover/mutation</div>
+  <div class="bar neutral" style="width: 240px;"></div>
+  <span style="color: #8b949e;">3 (60%)</span>
+</div><div style="display: flex; align-items: center; margin: 8px 0; gap: 12px;">
+  <div style="width: 200px; text-align: right; color: #c9d1d9;">Algorithm swap</div>
+  <div class="bar neutral" style="width: 80px;"></div>
+  <span style="color: #8b949e;">1 (20%)</span>
+</div><div style="display: flex; align-items: center; margin: 8px 0; gap: 12px;">
+  <div style="width: 200px; text-align: right; color: #c9d1d9;">Hyperparameter tweak</div>
+  <div class="bar neutral" style="width: 80px;"></div>
+  <span style="color: #8b949e;">1 (20%)</span>
+</div>
+<h3 style="margin-top: 20px;">Improvement Trajectory</h3>
+<table><thead><tr><th>Transition</th><th>Delta</th><th>Algorithm</th></tr></thead>
+<tbody><tr>
+  <td>Gen 0 &rarr; 0</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.023964</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 0 &rarr; 1</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000492</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 1 &rarr; 5</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000131</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 5 &rarr; 9</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000047</td>
+  <td>XGBoost</td>
+</tr><tr>
+  <td>Gen 9 &rarr; 9</td>
+  <td style="color: #3fb950; font-weight: bold;">+0.000330</td>
+  <td>XGBoost</td>
+</tr></tbody></table>
+  </div>
+
+  <div class="footer">
+    Generated by AutoML Research Framework &bull; 2026-04-06 11:26:44
+  </div>
+</div>
+</body>
+</html>
